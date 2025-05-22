@@ -1,0 +1,80 @@
+{
+  "id": "root",
+  "name": "Plants",
+  "scientific_name": "Plantae",
+  "children": [
+    {
+      "id": "flowering_plants",
+      "name": "Flowering Plants",
+      "scientific_name": "Angiosperms",
+      "children": [
+        {
+          "id": "monocots",
+          "name": "Monocots",
+          "scientific_name": "Monocotyledoneae",
+          "children": [
+            {
+              "id": "osa",
+              "name": "Rice",
+              "scientific_name": "Oryza sativa",
+              "common_name": "Rice",
+              "taxonomy_id": 4530,
+              "type": "species"
+            },
+            {
+              "id": "zma",
+              "name": "Maize",
+              "scientific_name": "Zea mays",
+              "common_name": "Corn",
+              "taxonomy_id": 4577,
+              "type": "species"
+            }
+          ]
+        },
+        {
+          "id": "dicots",
+          "name": "Dicots",
+          "scientific_name": "Dicotyledoneae",
+          "children": [
+            {
+              "id": "brassicaceae",
+              "name": "Brassicaceae",
+              "children": [
+                {
+                  "id": "ath",
+                  "name": "Arabidopsis",
+                  "scientific_name": "Arabidopsis thaliana",
+                  "common_name": "Thale cress",
+                  "taxonomy_id": 3702,
+                  "type": "species"
+                }
+              ]
+            },
+            {
+              "id": "solanaceae",
+              "name": "Solanaceae",
+              "children": [
+                {
+                  "id": "sly",
+                  "name": "Tomato",
+                  "scientific_name": "Solanum lycopersicum",
+                  "common_name": "Tomato",
+                  "taxonomy_id": 4081,
+                  "type": "species"
+                },
+                {
+                  "id": "stu",
+                  "name": "Potato",
+                  "scientific_name": "Solanum tuberosum",
+                  "common_name": "Potato",
+                  "taxonomy_id": 4113,
+                  "type": "species"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
