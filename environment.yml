@@ -1,0 +1,28 @@
+name: orthoviewer2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - ete3
+  - biopython
+  - fastapi
+  - uvicorn
+  - pydantic
+  - aiofiles
+  - python-multipart
+  - pytest
+  - pytest-asyncio
+  - pytest-cov
+  - black
+  - flake8
+  - mypy
+  - pip:
+    - pytest-mock
+    - httpx

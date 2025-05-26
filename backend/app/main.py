@@ -29,7 +29,7 @@ except ImportError:
 
 # Create FastAPI app
 app = FastAPI(
-    title="BioSemanticViz API",
+    title="OrthoViewer API",
     description="API for biological data visualization and semantic reasoning",
     version="0.1.0",
 )
