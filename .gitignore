@@ -1,18 +1,25 @@
 # Dependencies
 /node_modules
 /frontend/node_modules
+/frontend-vite/node_modules
 /.pnp
 .pnp.js
 
 # Testing
 /coverage
 /frontend/coverage
+/frontend-vite/coverage
+/htmlcov
+.coverage
+.pytest_cache/
 
 # Production
 /build
 /frontend/build
+/frontend-vite/build
 /dist
 /frontend/dist
+/frontend-vite/dist
 
 # Python
 __pycache__/
@@ -21,6 +28,8 @@ __pycache__/
 *.so
 .Python
 env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -38,6 +47,7 @@ var/
 backend/venv/
 backend/fresh_venv/
 backend/app/uploads/
+.pytest_cache/
 
 # Misc
 .DS_Store
@@ -64,19 +74,26 @@ logs
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
 
 # Miniforge files
 miniforge/
 miniforge_install/
+**/Miniforge3-Linux-x86_64.sh
 
 # Node modules
 **/node_modules/
 
 # Large data files
 data/orthofinder/Orthogroups_clean_121124.txt
+**/uploads/
 
 # Cache files
 **/.cache/
+**/.eslintcache
+.parcel-cache/
 
 # OS generated files
 .DS_Store
@@ -86,3 +103,17 @@ data/orthofinder/Orthogroups_clean_121124.txt
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~.nib
+local.properties
+.temp/
+
+# Conda environment
+/conda-env/
+**/.conda/
+environment.yml.lock

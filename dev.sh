@@ -1,340 +1,475 @@
 #!/bin/bash
 
 # =============================================
-# BioSemanticViz Development Environment Setup
+# OrthoViewer2 Development Environment Script
+# Phylogenetic Analysis Platform - Vite Frontend
 # =============================================
 
-# Color codes for better output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+set -o pipefail
 
-# Configurable ports
-BACKEND_PORT=8003
-FRONTEND_PORT=3000
-WEBSOCKET_PORT=8004  # WebSocket port
+# Colors
+INFO='\033[0;36m'
+SUCCESS='\033[0;32m'
+WARNING='\033[1;33m'
+ERROR='\033[0;31m'
+RESET='\033[0m'
 
-# Print section header
-section() {
-  echo -e "\n${GREEN}════════════════════════════════════════════════════════════${NC}"
-  echo -e "${BLUE}  $1${NC}"
-  echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}\n"
-}
-
-# Print step info
-step() {
-  echo -e "${YELLOW}➤ $1${NC}"
-}
-
-# Print error and exit
-error() {
-  echo -e "${RED}ERROR: $1${NC}"
-  exit 1
-}
-
-# Check if command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-# Check if port is in use and kill process if needed
-check_port() {
-  if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null ; then
-    step "Port $1 is in use. Killing existing process..."
-    lsof -ti :$1 | xargs kill -9 || true
-    sleep 1
-  fi
-}
-
-# Setup signal handling
-cleanup() {
-  section "Shutting Down All Services"
-  kill $(jobs -p) 2>/dev/null || true
-  step "All services have been stopped."
-  exit 0
-}
-trap cleanup SIGINT SIGTERM
-
-# Check dependencies
-section "Checking Dependencies"
-
-# Check for pnpm (preferred) or npm
-if command_exists pnpm; then
-  PACKAGE_MANAGER="pnpm"
-  step "Using pnpm for package management"
-elif command_exists npm; then
-  PACKAGE_MANAGER="npm"
-  step "Using npm for package management (consider switching to pnpm)"
-else
-  error "Neither pnpm nor npm is installed. Please install pnpm: https://pnpm.io/installation"
-fi
-
-# Check for conda (preferred) or python
-if command_exists conda; then
-  step "Using conda for Python environment management"
-  PYTHON_MANAGER="conda"
-elif command_exists python3; then
-  step "Using venv for Python environment management (consider switching to conda)"
-  PYTHON_MANAGER="venv"
-else
-  error "Neither conda nor python3 is found. Please install miniconda: https://docs.conda.io/en/latest/miniconda.html"
-fi
-
-# Check for ports in use
-section "Checking Ports"
-check_port $BACKEND_PORT
-check_port $FRONTEND_PORT
-check_port $WEBSOCKET_PORT  # WebSocket port check
-
-# Set up Python environment
-section "Setting Up Python Environment"
-
-if [ "$PYTHON_MANAGER" == "conda" ]; then
-  # Setup using conda
-  if ! conda env list | grep -q "bio-semantic-viz"; then
-    step "Creating conda environment 'bio-semantic-viz'..."
-    conda create -y -n bio-semantic-viz python=3.10
-  fi
-  
-  step "Activating conda environment..."
-  source "$(conda info --base)/etc/profile.d/conda.sh"
-  conda activate bio-semantic-viz || error "Failed to activate conda environment"
-  
-  step "Installing Python dependencies..."
-  pip install -r requirements.txt
-
-  # Install WebSocket dependencies
-  step "Installing WebSocket dependencies..."
-  pip install websockets uvicorn[standard] || error "Failed to install WebSocket dependencies"
-  
-  # Install ete3 for phylogeny visualization
-  step "Installing ete3 for phylogeny visualization..."
-  pip install ete3 || error "Failed to install ete3"
-else
-  # Setup using venv
-  if [ ! -d "venv" ]; then
-    step "Creating Python virtual environment..."
-    python3 -m venv venv || error "Failed to create virtual environment"
-  fi
-  
-  step "Activating virtual environment..."
-  source venv/bin/activate || error "Failed to activate virtual environment"
-  
-  step "Installing Python dependencies..."
-  pip install --upgrade pip
-  pip install -r requirements.txt
-
-  # Install WebSocket dependencies
-  step "Installing WebSocket dependencies..."
-  pip install websockets uvicorn[standard] || error "Failed to install WebSocket dependencies"
-  
-  # Install ete3 for phylogeny visualization
-  step "Installing ete3 for phylogeny visualization..."
-  pip install ete3 || error "Failed to install ete3"
-fi
-
-# Create required directories
-step "Creating required directories..."
-mkdir -p backend/app/uploads
-mkdir -p logs
-
-# Start backend
-section "Starting Backend Server"
-
-step "Starting FastAPI backend on port $BACKEND_PORT..."
-cd backend
-export PYTHONPATH=$PWD
-
-# Create a temporary CORS configuration for the backend
-if [ -f "app/fastapi_main.py" ]; then
-  step "Configuring CORS for microservice architecture..."
-  TEMP_CONFIG=$(cat << 'EOF'
-# Temporary CORS configuration for development
-from fastapi.middleware.cors import CORSMiddleware
-
-# Add CORS middleware to allow cross-origin requests between services
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        f"http://localhost:{FRONTEND_PORT}", 
-        "*"  # Allow all for development
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-EOF
-)
-  
-  # Check if CORS config already exists
-  if ! grep -q "CORSMiddleware" app/fastapi_main.py; then
-    # Find line with FastAPI app instantiation
-    APP_LINE=$(grep -n "app = FastAPI" app/fastapi_main.py | cut -d ':' -f 1)
-    if [ -n "$APP_LINE" ]; then
-      # Add CORS config after the app instantiation
-      APP_LINE=$((APP_LINE + 1))
-      sed -i "${APP_LINE}i\\${TEMP_CONFIG}" app/fastapi_main.py
-      echo "Added CORS middleware configuration to FastAPI"
-    fi
-  fi
-fi
-
-uvicorn app.fastapi_main:app --host 0.0.0.0 --port $BACKEND_PORT --reload &
-cd ..
-
-# Start WebSocket service for communication between services
-section "Starting WebSocket Service"
-cat > websocket_relay.py << 'EOF'
-#!/usr/bin/env python3
-import asyncio
-import websockets
-import json
-import logging
-import sys
-from datetime import datetime
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("websocket_relay")
-
-# Store connected clients
-frontend_clients = set()
-
-async def message_relay(websocket, path):
-    """Handle WebSocket connections and relay messages between services"""
-    client_type = None
-    try:
-        # Initial handshake to identify the client
-        async for message in websocket:
-            try:
-                data = json.loads(message)
-                
-                # Register client type on first message
-                if not client_type and "client_type" in data:
-                    client_type = data["client_type"]
-                    if client_type == "frontend":
-                        frontend_clients.add(websocket)
-                        logger.info(f"Frontend client connected. Total: {len(frontend_clients)}")
-                    
-                    # Send acknowledgement
-                    await websocket.send(json.dumps({
-                        "type": "connection_ack",
-                        "timestamp": datetime.now().isoformat(),
-                        "message": f"Connected as {client_type} client"
-                    }))
-                    continue
-                
-                # Broadcast option for messages that should go to all clients
-                if "target" in data and data["target"] == "broadcast":
-                    if frontend_clients:
-                        await asyncio.gather(
-                            *[client.send(message) for client in frontend_clients 
-                              if client != websocket]  # Don't send back to sender
-                        )
-            except json.JSONDecodeError:
-                logger.error(f"Invalid JSON received: {message[:100]}...")
-                
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    finally:
-        # Clean up on disconnect
-        if client_type == "frontend" and websocket in frontend_clients:
-            frontend_clients.remove(websocket)
-            logger.info(f"Frontend client disconnected. Remaining: {len(frontend_clients)}")
-
-async def main():
-    # Get port from command line argument
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8004
-    logger.info(f"Starting WebSocket relay server on port {port}")
-    async with websockets.serve(message_relay, "0.0.0.0", port):
-        await asyncio.Future()  # Run forever
-
-if __name__ == "__main__":
-    asyncio.run(main())
-EOF
-
-# Start WebSocket relay
-step "Starting WebSocket relay on port $WEBSOCKET_PORT..."
-python websocket_relay.py $WEBSOCKET_PORT &
-
-# Wait for backend to start
-step "Waiting for backend to start..."
-for i in {1..10}; do
-  sleep 2
-  if lsof -Pi :$BACKEND_PORT -sTCP:LISTEN -t >/dev/null; then
-    step "Backend server started successfully!"
-    break
-  fi
-  echo -n "."
-  if [ $i -eq 10 ]; then
-    error "Failed to start backend server after 20 seconds"
-  fi
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --help)
+      echo "OrthoViewer2 Development Environment"
+      echo "Usage: $0 [--help]"
+      echo ""
+      echo "This script starts the OrthoViewer2 development environment with:"
+      echo "  - Backend FastAPI server on port 8003"
+      echo "  - Frontend Vite development server on port 5173"
+      echo "  - API documentation at http://localhost:8003/docs"
+      echo ""
+      echo "Requirements:"
+      echo "  - Python 3.9+ (conda/miniforge recommended)"
+      echo "  - Node.js 16+ with npm"
+      echo "  - frontend-vite/ directory with Vite React app"
+      echo "  - backend/ directory with FastAPI app"
+      exit 0
+      ;;
+    *)
+      shift
+      ;;
+  esac
 done
 
-# Start frontend
-section "Starting Frontend Applications"
+info() {
+    echo -e "${INFO}→ $1${RESET}"
+}
 
-# Install and start main frontend with environment variables
-step "Setting up main frontend..."
-cd frontend
+success() {
+    echo -e "${SUCCESS}✓ $1${RESET}"
+}
 
-# Check if we need to clean node_modules
-if [ -d "node_modules" ] && [ "${CLEAN_INSTALL:-false}" = "true" ]; then
-  step "Cleaning existing node_modules for a fresh install..."
-  rm -rf node_modules package-lock.json
+warning() {
+    echo -e "${WARNING}! $1${RESET}"
+}
+
+error() {
+    echo -e "${ERROR}✗ $1${RESET}"
+}
+
+# Check if a command is available
+check_command() {
+    if ! command -v $1 &> /dev/null; then
+        error "$1 command not found"
+        return 1
+    else
+        success "$1 is available"
+        return 0
+    fi
+}
+
+# Check if port is in use
+is_port_in_use() {
+    if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Kill process using a specific port
+kill_port_process() {
+    local port=$1
+    if is_port_in_use $port; then
+        local pid=$(lsof -ti :$port)
+        warning "Port $port is in use by PID $pid. Terminating process."
+        kill -9 $pid 2>/dev/null || true
+        sleep 2
+    fi
+}
+
+# Install Vite frontend dependencies
+install_vite_deps() {
+    info "Checking Vite frontend dependencies..."
+    cd frontend-vite
+    
+    # Check if node_modules exists, if not, install dependencies
+    if [ ! -d "node_modules" ]; then
+        info "Installing frontend dependencies..."
+        npm install
+    fi
+    
+    # Check for Vite specifically
+    if ! npm list vite >/dev/null 2>&1; then
+        info "Installing Vite dependencies..."
+        npm install --save-dev vite @vitejs/plugin-react
+    fi
+    
+    success "Vite frontend dependencies ready"
+    cd ..
+}
+
+# Define ports
+BACKEND_PORT=8003
+FRONTEND_PORT=5173
+
+# Create logs directory
+mkdir -p logs
+
+# Store background process PIDs for cleanup
+BACKEND_PID=""
+FRONTEND_PID=""
+
+# Cleanup function
+cleanup() {
+    echo ""
+    info "Shutting down development environment..."
+    
+    if [ ! -z "$BACKEND_PID" ] && kill -0 $BACKEND_PID 2>/dev/null; then
+        info "Stopping backend (PID: $BACKEND_PID)"
+        kill $BACKEND_PID 2>/dev/null || true
+    fi
+    
+    if [ ! -z "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
+        info "Stopping frontend (PID: $FRONTEND_PID)"
+        kill $FRONTEND_PID 2>/dev/null || true
+    fi
+    
+    # Clean up any remaining processes on our ports
+    kill_port_process $BACKEND_PORT
+    kill_port_process $FRONTEND_PORT
+    
+    success "Development environment stopped"
+    exit 0
+}
+
+# Set up signal handlers
+trap cleanup SIGINT SIGTERM
+
+# Check basic requirements
+echo "Starting OrthoViewer2 Development Environment"
+echo "============================================="
+info "Using Vite frontend with React"
+
+# Check if we're in the right directory
+if [ ! -d "backend" ]; then
+    error "Backend directory not found. Please run from project root directory."
+    exit 1
 fi
 
-if [ "$PACKAGE_MANAGER" == "pnpm" ]; then
-  step "Installing frontend dependencies using pnpm..."
-  pnpm install --no-strict-peer-dependencies
+if [ ! -d "frontend-vite" ]; then
+    error "frontend-vite directory not found."
+    error "This script requires a Vite-based React frontend in frontend-vite/"
+    exit 1
+fi
 
-  # Install WebSocket client if needed
-  if ! grep -q "socket.io-client" package.json; then
-    step "Adding WebSocket client dependency..."
-    pnpm add socket.io-client
-  fi
-  
-  step "Starting frontend development server..."
-  VITE_BACKEND_URL="http://localhost:$BACKEND_PORT" \
-  VITE_WEBSOCKET_URL="ws://localhost:$WEBSOCKET_PORT" \
-  pnpm dev --port $FRONTEND_PORT &
+# Check for Node.js
+info "Checking for Node.js..."
+if ! check_command node; then
+    error "Node.js is required for the frontend. Please install it from https://nodejs.org"
+    exit 1
+fi
+
+# Check Node.js version
+NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 16 ]; then
+    warning "Node.js version $NODE_VERSION detected. Version 16+ recommended for Vite."
+fi
+
+# Check for npm
+info "Checking for npm..."
+if ! check_command npm; then
+    error "npm is required for the frontend. Please install Node.js which includes npm."
+    exit 1
+fi
+
+# Check for Python
+info "Checking for Python..."
+PYTHON_CMD="python"
+if ! check_command python; then
+    info "Trying python3 instead..."
+    if ! check_command python3; then
+        error "Python is required for the backend. Please install Python 3.9+ from https://python.org"
+        exit 1
+    else
+        PYTHON_CMD="python3"
+    fi
+fi
+
+# Check Python version
+PYTHON_VERSION=$($PYTHON_CMD --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1,2)
+if [ "$(printf '%s\n' "3.9" "$PYTHON_VERSION" | sort -V | head -n1)" != "3.9" ]; then
+    warning "Python version $PYTHON_VERSION detected. Version 3.9+ recommended."
+fi
+
+# Clear any processes using our ports
+info "Cleaning up existing processes..."
+kill_port_process $BACKEND_PORT
+kill_port_process $FRONTEND_PORT
+
+# Check if conda is available
+CONDA_AVAILABLE=false
+if command -v conda &> /dev/null; then
+    CONDA_AVAILABLE=true
+    info "Conda is available: $(conda --version)"
+    
+    # Check for orthoviewer2 environment
+    if conda env list | grep -q "orthoviewer2"; then
+        info "Activating orthoviewer2 environment"
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+        success "Activated orthoviewer2 conda environment"
+    else
+        warning "orthoviewer2 conda environment not found, using current environment"
+        info "To create it: conda create -n orthoviewer2 python=3.11 fastapi uvicorn"
+    fi
 else
-  step "Installing frontend dependencies using npm..."
-  # Use npm ci for a clean install if package-lock.json exists, otherwise use npm install
-  if [ -f "package-lock.json" ]; then
-    npm ci --legacy-peer-deps
-  else
-    npm install --legacy-peer-deps
-  fi
-
-  # Install WebSocket client if needed
-  if ! grep -q "socket.io-client" package.json; then
-    step "Adding WebSocket client dependency..."
-    npm install --save socket.io-client --legacy-peer-deps
-  fi
-  
-  # Install react-scripts if not already installed
-  if ! npm list react-scripts > /dev/null 2>&1; then
-    step "Installing react-scripts..."
-    npm install --save-dev react-scripts --legacy-peer-deps
-  fi
-  
-  step "Starting frontend development server..."
-  REACT_APP_BACKEND_URL="http://localhost:$BACKEND_PORT" \
-  REACT_APP_WEBSOCKET_URL="ws://localhost:$WEBSOCKET_PORT" \
-  npm start &
+    warning "Conda not found, using system Python"
+    info "For better package management, consider installing Miniforge: https://github.com/conda-forge/miniforge"
 fi
+
+# Check backend dependencies
+info "Checking backend dependencies..."
+if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
+    warning "FastAPI or uvicorn not installed. Installing required packages..."
+    cd backend
+    if [ -f "requirements.txt" ]; then
+        $PYTHON_CMD -m pip install -r requirements.txt
+    else
+        $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+    fi
+    cd ..
+    
+    # Re-check
+    if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
+        error "Failed to install backend dependencies. Please install manually:"
+        echo "  pip install fastapi uvicorn python-multipart"
+        exit 1
+    fi
+else
+    success "Backend dependencies are installed"
+fi
+
+# Find main FastAPI file
+cd backend
+FASTAPI_MAIN=""
+if [ -f "app/fastapi_main.py" ]; then
+    FASTAPI_MAIN="app.fastapi_main:app"
+    success "Found FastAPI app: app/fastapi_main.py"
+elif [ -f "app/main.py" ]; then
+    FASTAPI_MAIN="app.main:app"
+    success "Found FastAPI app: app/main.py"
+elif [ -f "main.py" ]; then
+    FASTAPI_MAIN="main:app"
+    success "Found FastAPI app: main.py"
+else
+    error "Cannot find FastAPI main file. Expected one of:"
+    echo "  - backend/app/fastapi_main.py"
+    echo "  - backend/app/main.py"
+    echo "  - backend/main.py"
+    exit 1
+fi
+
+# Test FastAPI app import
+info "Testing FastAPI app import..."
+export PYTHONPATH=$PWD
+IMPORT_MODULE="${FASTAPI_MAIN%:*}"
+IMPORT_APP="${FASTAPI_MAIN#*:}"
+if $PYTHON_CMD -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    exec('from $IMPORT_MODULE import $IMPORT_APP')
+    print('SUCCESS: FastAPI app imported')
+except Exception as e:
+    print(f'WARNING: Import failed - {e}')
+" 2>/dev/null | grep -q "SUCCESS"; then
+    success "FastAPI app imports successfully"
+else
+    warning "FastAPI app import test failed. Continuing anyway - app may still work."
+fi
+
+# Start the backend
+info "Starting backend server on port $BACKEND_PORT..."
+($PYTHON_CMD -m uvicorn $FASTAPI_MAIN --host 0.0.0.0 --port $BACKEND_PORT --reload > ../logs/backend.log 2>&1) &
+BACKEND_PID=$!
 cd ..
 
-# Display startup message
-section "BioSemanticViz Development Environment Running"
-echo -e "${GREEN}▶ Main Frontend:${NC} http://localhost:$FRONTEND_PORT"
-echo -e "${GREEN}▶ Backend API:${NC} http://localhost:$BACKEND_PORT"
-echo -e "${GREEN}▶ API Documentation:${NC} http://localhost:$BACKEND_PORT/docs"
-echo -e "${GREEN}▶ WebSocket Service:${NC} ws://localhost:$WEBSOCKET_PORT"
+# Wait for backend to start
+info "Waiting for backend to start..."
+BACKEND_STARTED=false
+for i in {1..30}; do
+    sleep 1
+    
+    # Multiple health check methods
+    if command -v curl >/dev/null 2>&1; then
+        # Use curl if available
+        if curl -f -s http://localhost:$BACKEND_PORT/ >/dev/null 2>&1; then
+            success "Backend is responding on http://localhost:$BACKEND_PORT"
+            BACKEND_STARTED=true
+            break
+        elif curl -f -s http://localhost:$BACKEND_PORT/docs >/dev/null 2>&1; then
+            success "Backend docs are available at http://localhost:$BACKEND_PORT/docs"
+            BACKEND_STARTED=true
+            break
+        elif curl -f -s http://localhost:$BACKEND_PORT/api/health >/dev/null 2>&1; then
+            success "Backend health endpoint is responding"
+            BACKEND_STARTED=true
+            break
+        fi
+    fi
+    
+    # Fallback: check if port is in use
+    if is_port_in_use $BACKEND_PORT; then
+        if [ $i -gt 15 ]; then  # Give it more time after port is active
+            success "Backend port is active - server appears to be running"
+            success "Backend URL: http://localhost:$BACKEND_PORT"
+            BACKEND_STARTED=true
+            break
+        fi
+    fi
+    
+    # Check if process is still running
+    if ! kill -0 $BACKEND_PID 2>/dev/null; then
+        error "Backend process died. Check logs/backend.log for details."
+        break
+    fi
+    
+    # Show progress
+    if [ $((i % 5)) -eq 0 ]; then
+        echo -n " (${i}s)"
+    else
+        echo -n "."
+    fi
+done
+echo ""  # New line after dots
 
-echo -e "\n${BLUE}Press Ctrl+C to stop all services${NC}"
+# Show backend logs if it failed to start
+if [ "$BACKEND_STARTED" = false ]; then
+    warning "Showing last 20 lines of backend logs:"
+    if [ -f "logs/backend.log" ]; then
+        tail -n 20 logs/backend.log
+    else
+        echo "No backend log file found."
+    fi
+fi
 
-# Wait for all background processes
-wait 
+# Install Vite frontend dependencies
+install_vite_deps
+
+# Start the frontend
+info "Setting up Vite frontend..."
+cd frontend-vite
+
+# Create or update environment files
+info "Configuring frontend environment..."
+echo "VITE_BACKEND_URL=http://localhost:$BACKEND_PORT" > .env
+echo "VITE_API_BASE_URL=http://localhost:$BACKEND_PORT" >> .env
+success "Created/updated .env file with backend URL"
+
+# Start the Vite development server
+info "Starting Vite development server on port $FRONTEND_PORT..."
+(npm run dev > ../logs/frontend.log 2>&1) &
+FRONTEND_PID=$!
+cd ..
+
+# Wait for frontend to start
+info "Waiting for frontend to start..."
+FRONTEND_STARTED=false
+for i in {1..30}; do
+    sleep 1
+    if is_port_in_use $FRONTEND_PORT; then
+        success "Frontend is running on http://localhost:$FRONTEND_PORT"
+        FRONTEND_STARTED=true
+        break
+    fi
+    
+    # Check if process is still running
+    if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+        error "Frontend process died. Check logs/frontend.log for details."
+        break
+    fi
+    
+    # Show progress for frontend
+    if [ $((i % 5)) -eq 0 ]; then
+        echo -n " (${i}s)"
+    else
+        echo -n "."
+    fi
+done
+echo ""  # New line after dots
+
+# Show frontend logs if it failed to start
+if [ "$FRONTEND_STARTED" = false ]; then
+    warning "Showing last 20 lines of frontend logs:"
+    if [ -f "logs/frontend.log" ]; then
+        tail -n 20 logs/frontend.log
+    else
+        echo "No frontend log file found."
+    fi
+fi
+
+# Summary of services
+echo ""
+echo "Development Environment Status:"
+echo "------------------------------"
+if [ "$BACKEND_STARTED" = true ]; then
+    success "Backend: Running on http://localhost:$BACKEND_PORT (PID: $BACKEND_PID)"
+    success "API docs: http://localhost:$BACKEND_PORT/docs"
+    success "Health check: http://localhost:$BACKEND_PORT/api/health"
+else
+    error "Backend: Not running"
+fi
+
+if [ "$FRONTEND_STARTED" = true ]; then
+    success "Frontend (Vite): Running on http://localhost:$FRONTEND_PORT (PID: $FRONTEND_PID)"
+else
+    error "Frontend (Vite): Not running"
+fi
+
+# Provide log file locations
+echo ""
+info "Log files:"
+info "- Backend: ./logs/backend.log"
+info "- Frontend: ./logs/frontend.log"
+
+echo ""
+if [ "$FRONTEND_STARTED" = true ] && [ "$BACKEND_STARTED" = true ]; then
+    success "Development environment started successfully!"
+    echo ""
+    success "🧬 OrthoViewer2 Phylogenetic Analysis Platform Ready!"
+    echo ""
+    info "Available endpoints:"
+    info "- Frontend:      http://localhost:$FRONTEND_PORT"
+    info "- Backend API:   http://localhost:$BACKEND_PORT"
+    info "- API docs:      http://localhost:$BACKEND_PORT/docs"
+    info "- Health check:  http://localhost:$BACKEND_PORT/api/health"
+    echo ""
+    info "Open http://localhost:$FRONTEND_PORT in your browser to start analyzing phylogenetic data"
+elif [ "$BACKEND_STARTED" = true ]; then
+    warning "Backend is running, but frontend failed to start."
+    info "You can still access:"
+    info "- Backend API:   http://localhost:$BACKEND_PORT"
+    info "- API docs:      http://localhost:$BACKEND_PORT/docs"
+    echo ""
+    info "To restart frontend only:"
+    info "  cd frontend-vite && npm run dev"
+elif [ "$FRONTEND_STARTED" = true ]; then
+    warning "Frontend is running, but backend failed to start."
+    info "Frontend may not function properly without the backend."
+else
+    error "Both frontend and backend failed to start. Check the logs for details."
+fi
+
+echo ""
+info "Press Ctrl+C to stop all services"
+
+echo ""
+info "Troubleshooting tips:"
+info "- If you see WebSocket connection errors: Restart with Ctrl+C then ./dev.sh"
+info "- If frontend stops responding: Check logs/frontend.log for errors"
+info "- If file watching stops working: increase fs.inotify.max_user_watches"
+info "  sudo sysctl fs.inotify.max_user_watches=524288"
+info "- For memory issues: close other applications or restart terminal"
+info "- Frontend-only restart: cd frontend-vite && npm run dev"
+
+# Wait for user to stop the script
+wait
