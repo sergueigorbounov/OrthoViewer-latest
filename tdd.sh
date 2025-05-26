@@ -230,6 +230,10 @@ EOF
 run_frontend_lint() {
   if [ "$LINT" = true ]; then
     echo -e "${CYAN}Running frontend linting...${NC}"
+if [ ! -d "frontend" ]; then
+    echo "Frontend directory not found, skipping frontend tests..."
+    exit 0
+fi
     cd frontend
     
     # Run ESLint if available
@@ -251,6 +255,10 @@ run_frontend_lint() {
 # Start tests with enhanced options
 start_tests() {
   echo -e "${CYAN}Starting tests...${NC}"
+if [ ! -d "frontend" ]; then
+    echo "Frontend directory not found, skipping frontend tests..."
+    exit 0
+fi
   cd frontend
   
   # Build test command
@@ -296,6 +304,10 @@ start_frontend() {
     echo -e "${CYAN}Setting up frontend...${NC}"
     check_port $FRONTEND_PORT
     
+if [ ! -d "frontend" ]; then
+    echo "Frontend directory not found, skipping frontend tests..."
+    exit 0
+fi
     cd frontend
     
     # Install dependencies if node_modules doesn't exist

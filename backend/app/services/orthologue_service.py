@@ -1,31 +1,31 @@
 import logging
-from typing import Dict, List, Optional, Any, Set
+import time
+from typing import Dict, List, Optional
 
+from app.models.phylo import (
+    OrthologueSearchRequest, OrthologueSearchResponse,
+    OrthologueData, OrthoSpeciesCount
+)
 from app.data_access.orthogroups_repository import OrthogroupsRepository
 from app.data_access.species_repository import SpeciesRepository
-from app.models.phylo import (
-    OrthologueSearchRequest, OrthologueSearchResponse, OrthologueData, OrthoSpeciesCount
-)
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 class OrthologueService:
-    """Service for orthologue-related operations."""
+    """Service for orthologue-related operations"""
     
     def __init__(self):
-        """Initialize the service with repositories."""
+        """Initialize the service with repositories"""
         self.orthogroups_repo = OrthogroupsRepository()
         self.species_repo = SpeciesRepository()
-    
+
     async def search_orthologues(self, request: OrthologueSearchRequest) -> OrthologueSearchResponse:
-        """Search for orthologues of a given gene."""
+        """Search for orthologues of a given gene"""
         gene_id = request.gene_id.strip()
         logger.info(f"Searching for orthologues of gene: {gene_id}")
         
         try:
             # Start timing the search
-            import time
             start_time = time.time()
             
             # Find the orthogroup for the gene
@@ -52,57 +52,59 @@ class OrthologueService:
             logger.info(f"Time to get genes: {get_genes_time:.2f} seconds")
             logger.info(f"Found {sum(len(genes) for genes in genes_by_species.values())} genes in {len(genes_by_species)} species")
             
-            # Load species mapping
-            species_mapping = self.species_repo.load_species_mapping()
-            
-            # Enhance species mapping with the species from orthogroups
-            ortho_species = set(genes_by_species.keys())
-            enhanced_mapping = self.species_repo.enhance_species_mapping(ortho_species)
-            
-            # Get species tree
-            species_tree = self.species_repo.load_species_tree()
-            
-            # Process results into response format
+            # Process results
             start_time = time.time()
-            orthologue_data = []
             
-            # Get total gene count
-            total_genes = sum(len(genes) for genes in genes_by_species.values())
+            # Prepare response data
+            orthologues = []
+            counts_by_species = []
             
-            for species_code, genes in genes_by_species.items():
+            # Get all species from orthogroups data
+            all_species = set(self.orthogroups_repo.get_species_columns())
+            
+            # Process each species
+            for species_code in all_species:
                 # Get full species name
                 species_name = self.species_repo.get_species_full_name(species_code)
                 
-                # Add to orthologue data
-                orthologue_data.append(
-                    OrthologueData(
+                # Get genes for this species
+                species_genes = genes_by_species.get(species_code, [])
+                
+                # Add count for this species
+                counts_by_species.append(
+                    OrthoSpeciesCount(
                         species_id=species_code,
                         species_name=species_name,
-                        genes=genes
+                        count=len(species_genes)
                     )
                 )
+                
+                # Add orthologue data for each gene
+                for gene in species_genes:
+                    if gene != gene_id:  # Don't include the query gene itself
+                        orthologues.append(
+                            OrthologueData(
+                                gene_id=gene,
+                                species_id=species_code,
+                                species_name=species_name,
+                                orthogroup_id=orthogroup_id
+                            )
+                        )
             
-            # Sort by species name
-            orthologue_data.sort(key=lambda x: x.species_name)
+            # Sort orthologues by species name
+            orthologues.sort(key=lambda x: x.species_name)
             
-            # Count species per genes
-            species_count = [
-                OrthoSpeciesCount(
-                    gene_count=len(genes),
-                    species_count=1
-                ) for _, genes in genes_by_species.items()
-            ]
+            # Get species tree
+            species_tree = self.species_repo.load_species_tree()
             
             # Create response
             response = OrthologueSearchResponse(
                 success=True,
                 gene_id=gene_id,
                 orthogroup_id=orthogroup_id,
-                total_genes=total_genes,
-                total_species=len(genes_by_species),
-                species_tree=species_tree,
-                orthologues=orthologue_data,
-                species_count=species_count
+                orthologues=orthologues,
+                counts_by_species=counts_by_species,
+                newick_tree=species_tree
             )
             
             # Log processing time

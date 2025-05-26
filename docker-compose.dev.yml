@@ -1,29 +1,30 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: ./frontend-vite
+      dockerfile: Dockerfile.dev
+    container_name: orthoviewer-frontend-dev
+    volumes:
+      - ./frontend-vite:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8003
+    command: npm run dev -- --host
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: orthoviewer-backend-dev
     volumes:
       - ./backend:/app
+    ports:
+      - "8003:8003"
     environment:
       - PYTHONPATH=/app
-      - DEVELOPMENT=true
-    ports:
-      - "8000:8000"
-    command: ["python", "-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
-
-  frontend:
-    build:
-      context: ./frontend-vite
-      dockerfile: Dockerfile
-    volumes:
-      - ./frontend-vite:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - VITE_API_BASE_URL=http://localhost:8000
-    ports:
-      - "3000:3000"
-    command: ["npm", "run", "dev"]
+      - DEVELOPMENT=1
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload

@@ -2,6 +2,7 @@ import logging
 import tempfile
 import base64
 from typing import List, Dict, Any, Optional
+from fastapi import HTTPException
 
 from app.core.config import get_settings
 from app.data_access.orthogroups_repository import OrthogroupsRepository
@@ -14,6 +15,13 @@ from app.models.phylo import (
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# ETE3 imports
+try:
+    from ete3 import Tree, TreeStyle, NodeStyle
+    ETE_AVAILABLE = True
+except ImportError as e:
+    ETE_AVAILABLE = False
+
 class ETETreeService:
     """Service for ETE tree-based operations."""
     
@@ -25,16 +33,15 @@ class ETETreeService:
     
     def is_ete_available(self) -> bool:
         """Check if ETE toolkit is available."""
-        return settings.ETE_AVAILABLE
+        return ETE_AVAILABLE
     
-    def load_ete_tree(self):
+    def load_ete_tree(self) -> Tree:
         """Load phylogenetic tree using ETE toolkit."""
-        if not self.is_ete_available():
-            raise Exception("ETE3 toolkit not available")
+        if not ETE_AVAILABLE:
+            raise HTTPException(status_code=500, detail="ETE3 toolkit not available")
         
         if self._ete_tree is None:
             try:
-                from ete3 import Tree
                 logger.info("Loading tree with ETE toolkit")
                 
                 # Get the tree content
@@ -43,53 +50,55 @@ class ETETreeService:
                 
                 # Add species count information to tree nodes
                 species_mapping = self.species_repo.load_species_mapping()
-                
-                # Get gene counts by species
-                gene_counts = self.orthogroups_repo.get_gene_count_by_species()
-                species_codes = self.orthogroups_repo.get_all_species_codes()
+                ortho_data = self.orthogroups_repo.load_orthogroups_data()
+                species_columns = self.orthogroups_repo.get_species_columns()
                 
                 # Map species to tree nodes
                 for leaf in self._ete_tree.get_leaves():
                     leaf_name = leaf.name.strip().strip('"\'')
+                    enhanced_mapping = species_mapping.get('id_to_full', {})
                     
-                    # Try to find matching species in our data
-                    if leaf_name in species_mapping.get('id_to_full', {}):
-                        full_name = species_mapping['id_to_full'][leaf_name]
+                    if leaf_name in enhanced_mapping:
+                        full_name = enhanced_mapping[leaf_name]
                         leaf.add_feature("full_species_name", full_name)
                         leaf.add_feature("species_code", leaf_name)
                         
-                        # Add gene count if available
-                        if leaf_name in gene_counts:
-                            leaf.add_feature("gene_count", gene_counts[leaf_name])
-                        else:
-                            leaf.add_feature("gene_count", 0)
+                        # Count genes for this species
+                        if leaf_name in species_columns:
+                            gene_count = 0
+                            for _, row in ortho_data.iterrows():
+                                cell_value = row[leaf_name]
+                                if isinstance(cell_value, str) and cell_value.strip():
+                                    genes = [g.strip() for g in cell_value.split(',') if g.strip()]
+                                    gene_count += len(genes)
+                            leaf.add_feature("gene_count", gene_count)
                 
                 logger.info(f"ETE tree loaded with {len(self._ete_tree.get_leaves())} leaves")
                 
             except Exception as e:
                 logger.error(f"Failed to load ETE tree: {str(e)}")
                 # Create a simple fallback tree
-                from ete3 import Tree
                 self._ete_tree = Tree("(A:1,B:1);")
         
         return self._ete_tree
     
     def search_tree_by_gene(self, gene_id: str, max_results: int = 50) -> List[ETESearchResult]:
         """Search for species containing a specific gene."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return []
         
         results = []
         tree = self.load_ete_tree()
+        ortho_data = self.orthogroups_repo.load_orthogroups_data()
         
-        # Find which orthogroup contains this gene
-        orthogroup_id = self.orthogroups_repo.find_gene_orthogroup(gene_id)
-        if not orthogroup_id:
-            return []
-        
-        # Get species with this gene
-        genes_by_species = self.orthogroups_repo.get_orthogroup_genes(orthogroup_id)
-        species_with_gene = list(genes_by_species.keys())
+        # Find which species have this gene
+        species_with_gene = []
+        for col in ortho_data.columns[1:]:
+            for _, row in ortho_data.iterrows():
+                cell_value = row[col]
+                if isinstance(cell_value, str) and gene_id in cell_value:
+                    species_with_gene.append(col)
+                    break
         
         # Find corresponding tree nodes
         for species_code in species_with_gene[:max_results]:
@@ -110,7 +119,7 @@ class ETETreeService:
     
     def search_tree_by_species(self, species_query: str, max_results: int = 50) -> List[ETESearchResult]:
         """Search for species by name (fuzzy matching)."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return []
         
         results = []
@@ -143,7 +152,7 @@ class ETETreeService:
     
     def search_tree_by_clade(self, clade_query: str, max_results: int = 50) -> List[ETESearchResult]:
         """Search for clades containing specific taxa."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return []
         
         results = []
@@ -181,9 +190,9 @@ class ETETreeService:
         
         return results
     
-    def find_common_ancestor_search(self, species_list: List[str]) -> List[ETESearchResult]:
+    def find_common_ancestor(self, species_list: List[str]) -> List[ETESearchResult]:
         """Find common ancestor of specified species."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return []
         
         results = []
@@ -224,14 +233,12 @@ class ETETreeService:
         
         return results
     
-    def generate_tree_image(self, highlighted_nodes: List[str] = None) -> Optional[str]:
+    def generate_tree_image(self, highlighted_nodes: Optional[List[str]] = None) -> Optional[str]:
         """Generate tree visualization with ETE and return as base64 string."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return None
         
         try:
-            from ete3 import TreeStyle, NodeStyle
-            
             tree = self.load_ete_tree()
             
             # Create tree style
@@ -244,6 +251,7 @@ class ETETreeService:
             # Style nodes
             for node in tree.traverse():
                 nstyle = NodeStyle()
+                
                 if highlighted_nodes and node.name in highlighted_nodes:
                     nstyle["bgcolor"] = "#ffcccc"
                     nstyle["size"] = 15
@@ -256,6 +264,7 @@ class ETETreeService:
                         nstyle["size"] = 5
                 else:
                     nstyle["size"] = 3
+                    
                 node.set_style(nstyle)
             
             # Render to image
@@ -275,7 +284,7 @@ class ETETreeService:
     
     async def ete_search(self, request: ETESearchRequest) -> ETESearchResponse:
         """Perform tree-based search using ETE toolkit."""
-        if not self.is_ete_available():
+        if not ETE_AVAILABLE:
             return ETESearchResponse(
                 success=False,
                 query=request.query,
@@ -298,7 +307,7 @@ class ETETreeService:
             elif request.search_type == "common_ancestor":
                 # Parse comma-separated species list
                 species_list = [s.strip() for s in request.query.split(",")]
-                results = self.find_common_ancestor_search(species_list)
+                results = self.find_common_ancestor(species_list)
             else:
                 return ETESearchResponse(
                     success=False,
@@ -339,7 +348,7 @@ class ETETreeService:
     def get_ete_status(self) -> Dict[str, Any]:
         """Check ETE3 toolkit availability and status."""
         try:
-            if not self.is_ete_available():
+            if not ETE_AVAILABLE:
                 return {
                     "success": False,
                     "ete_available": False,
@@ -361,7 +370,7 @@ class ETETreeService:
         except Exception as e:
             return {
                 "success": False,
-                "ete_available": self.is_ete_available(),
+                "ete_available": ETE_AVAILABLE,
                 "error": str(e),
                 "message": f"ETE3 error: {str(e)}"
             }

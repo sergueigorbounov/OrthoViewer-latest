@@ -222,23 +222,12 @@ def newick_to_dict(newick_str: str) -> Dict[str, Any]:
 
 # Update forward references for recursive models
 # Pydantic v1 compatibility fix
-# Pydantic v1 compatibility fix
 if hasattr(PhyloNodeData, "model_rebuild"):
-    # Pydantic v1 compatibility fix
-    if hasattr(PhyloNodeData, "model_rebuild"):
-        # Pydantic v1 compatibility fix
-        if hasattr(PhyloNodeData, "model_rebuild"):
-            # Pydantic v1 compatibility fix
-            if hasattr(PhyloNodeData, "model_rebuild"):
-                PhyloNodeData.model_rebuild()
-            else:
-                PhyloNodeData.update_forward_refs()
-        else:
-            PhyloNodeData.update_forward_refs()
-    else:
-        PhyloNodeData.update_forward_refs()
+    PhyloNodeData.model_rebuild()
 else:
     PhyloNodeData.update_forward_refs()
+ETESearchResult.model_rebuild()
+TreeStatistics.model_rebuild()
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
@@ -259,23 +248,7 @@ def newick_to_dict(newick_str: str) -> Dict[str, Any]:
 # Update forward references for recursive models
 # Pydantic v1 compatibility fix
 if hasattr(PhyloNodeData, "model_rebuild"):
-    # Pydantic v1 compatibility fix
-    if hasattr(PhyloNodeData, "model_rebuild"):
-        # Pydantic v1 compatibility fix
-        if hasattr(PhyloNodeData, "model_rebuild"):
-            # Pydantic v1 compatibility fix
-            if hasattr(PhyloNodeData, "model_rebuild"):
-                PhyloNodeData.model_rebuild()
-            else:
-                PhyloNodeData.update_forward_refs()
-        else:
-            PhyloNodeData.update_forward_refs()
-    else:
-        PhyloNodeData.update_forward_refs()
+    PhyloNodeData.model_rebuild()
 else:
     PhyloNodeData.update_forward_refs()
-# Pydantic v1 compatibility fix
-if hasattr(ETESearchResult, "model_rebuild"):
-    ETESearchResult.model_rebuild()
-else:
-    ETESearchResult.update_forward_refs()
+ETESearchResult.model_rebuild()

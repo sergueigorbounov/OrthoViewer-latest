@@ -1,0 +1,127 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+title OrthoViewer - Layered Architecture
+
+' Layers
+package "Presentation Layer" {
+  package "Frontend (React + TypeScript)" {
+    class "Components" as FE_Components
+    class "Services" as FE_Services  
+    class "API Clients" as FE_APIClients
+    class "State Management" as FE_State
+  }
+  
+  package "API Layer (FastAPI)" {
+    class "OrthologueRoutes" as Routes_Ortho
+    class "ETERoutes" as Routes_ETE
+    class "Request/Response Models" as API_Models
+  }
+}
+
+package "Business Logic Layer" {
+  package "Services" {
+    class "OrthologueService" as Service_Ortho {
+      + search_orthologues()
+    }
+    class "ETETreeService" as Service_ETE {
+      + search_tree_by_gene()
+      + search_tree_by_species() 
+      + search_tree_by_clade()
+      + generate_tree_image()
+    }
+  }
+  
+  package "Domain Models" {
+    class "OrthologueData" as Model_Ortho
+    class "ETESearchResult" as Model_ETE
+    class "Species" as Model_Species
+  }
+}
+
+package "Data Access Layer" {
+  package "Repositories" {
+    class "OrthogroupsRepository" as Repo_Ortho {
+      + load_orthogroups_data()
+      + find_gene_orthogroup()
+      + get_orthogroup_genes()
+    }
+    class "SpeciesRepository" as Repo_Species {
+      + load_species_mapping()
+      + load_species_tree() 
+      + get_species_full_name()
+    }
+  }
+}
+
+package "Infrastructure Layer" {
+  package "External Libraries" {
+    class "ETE3 Toolkit" as Lib_ETE
+    class "Pandas" as Lib_Pandas
+  }
+  
+  package "Data Storage" {
+    class "Orthogroups Data" as Data_Ortho <<database>>
+    class "Species Mapping" as Data_Species <<database>>
+    class "Phylogenetic Tree" as Data_Tree <<database>>
+  }
+  
+  package "Core Components" {
+    class "Configuration" as Core_Config
+    class "Logging" as Core_Logging
+    class "Error Handling" as Core_Error
+  }
+}
+
+' Relationships
+' Frontend
+FE_Components --> FE_Services
+FE_Services --> FE_APIClients
+FE_Components --> FE_State
+FE_APIClients --> Routes_Ortho
+FE_APIClients --> Routes_ETE
+
+' API Layer
+Routes_Ortho --> API_Models
+Routes_ETE --> API_Models
+Routes_Ortho --> Service_Ortho
+Routes_ETE --> Service_ETE
+
+' Business Logic Layer
+Service_Ortho --> Model_Ortho
+Service_ETE --> Model_ETE
+Service_Ortho --> Repo_Ortho
+Service_Ortho --> Repo_Species
+Service_ETE --> Repo_Ortho
+Service_ETE --> Repo_Species
+Service_ETE --> Lib_ETE
+
+' Data Access Layer
+Repo_Ortho --> Data_Ortho
+Repo_Species --> Data_Species
+Repo_Species --> Data_Tree
+Repo_Ortho --> Lib_Pandas
+Repo_Species --> Lib_Pandas
+
+' Infrastructure Layer
+Repo_Ortho ..> Core_Config
+Repo_Species ..> Core_Config
+Service_Ortho ..> Core_Logging
+Service_ETE ..> Core_Logging
+Routes_Ortho ..> Core_Error
+Routes_ETE ..> Core_Error
+
+legend right
+  |= Layer |= Responsibility |
+  | Presentation | User interface and API endpoints |
+  | Business Logic | Core application logic and domain models |
+  | Data Access | Data persistence and retrieval |
+  | Infrastructure | External services and core utilities |
+endlegend
+
+@enduml

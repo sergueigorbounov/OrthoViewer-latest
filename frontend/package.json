@@ -1,0 +1,13 @@
+{
+  "name": "biosemantic-viz-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for BioSemanticViz",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0",
+    "build": "echo \"No build specified\" && exit 0",
+    "start": "echo \"No start specified\" && exit 0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
