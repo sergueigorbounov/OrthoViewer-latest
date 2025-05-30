@@ -45,6 +45,10 @@ def build_gene_to_orthogroup_map(df: pd.DataFrame) -> Dict[str, str]:
 
 def find_gene_orthogroup(gene_id: str, gene_map: Dict[str, str], df: pd.DataFrame) -> Optional[str]:
     """Find orthogroup for a gene using the prebuilt mapping"""
+    logger.info(f"Searching for gene {gene_id} in orthogroups data")
+    logger.info(f"Gene map has {len(gene_map)} entries")
+    logger.info(f"Dataframe shape: {df.shape}")
+    
     # First, try to find the gene in the prebuilt mapping (fast path)
     if gene_id in gene_map:
         logger.info(f"Found gene {gene_id} in orthogroup {gene_map[gene_id]} using cached mapping")
@@ -52,6 +56,12 @@ def find_gene_orthogroup(gene_id: str, gene_map: Dict[str, str], df: pd.DataFram
     
     # If not found in the map, fall back to the slower method
     logger.info(f"Gene {gene_id} not found in cache, using fallback search")
+    logger.info(f"Searching through {len(df.columns)-1} species columns")
+    
+    # Sample some data to help debug
+    sample_col = df.columns[1]  # First species column
+    sample_data = df[sample_col].head()
+    logger.info(f"Sample data from {sample_col}:\n{sample_data}")
     
     # Rechercher le gène dans toutes les colonnes
     for col in df.columns:
@@ -63,7 +73,9 @@ def find_gene_orthogroup(gene_id: str, gene_map: Dict[str, str], df: pd.DataFram
         if df[col].dtype == 'object':  # Vérifier que la colonne contient des chaînes de caractères
             # Check for exact match by splitting on commas and comparing
             mask = df[col].apply(lambda x: isinstance(x, str) and gene_id in [g.strip() for g in str(x).split(',')])
-            if mask.any():
+            matches = mask.sum()
+            if matches > 0:
+                logger.info(f"Found {matches} matches in column {col}")
                 # Retourner l'ID d'orthogroupe pour la ligne correspondante
                 result = str(df.loc[mask, df.columns[0]].iloc[0])
                 logger.info(f"Found gene {gene_id} in orthogroup {result} using fallback search")
@@ -71,6 +83,8 @@ def find_gene_orthogroup(gene_id: str, gene_map: Dict[str, str], df: pd.DataFram
                 # Add to cache for future lookups
                 gene_map[gene_id] = result
                 return result
+            else:
+                logger.debug(f"No matches in column {col}")
     
     logger.info(f"Gene {gene_id} not found in any orthogroup")
     return None

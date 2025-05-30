@@ -1,8 +1,10 @@
 import logging
+import os
 import tempfile
 import base64
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
+from ete3 import Tree, TreeStyle, NodeStyle
 
 from app.core.config import get_settings
 from app.data_access.orthogroups_repository import OrthogroupsRepository
@@ -23,64 +25,30 @@ except ImportError as e:
     ETE_AVAILABLE = False
 
 class ETETreeService:
-    """Service for ETE tree-based operations."""
-    
+    """Service for ETE toolkit operations"""
+
     def __init__(self):
-        """Initialize the service."""
+        """Initialize the ETE tree service"""
+        self.tree_file = settings.TREE_FILE
+        self._tree = None
         self.orthogroups_repo = OrthogroupsRepository()
         self.species_repo = SpeciesRepository()
-        self._ete_tree = None
     
     def is_ete_available(self) -> bool:
         """Check if ETE toolkit is available."""
         return ETE_AVAILABLE
     
     def load_ete_tree(self) -> Tree:
-        """Load phylogenetic tree using ETE toolkit."""
-        if not ETE_AVAILABLE:
-            raise HTTPException(status_code=500, detail="ETE3 toolkit not available")
-        
-        if self._ete_tree is None:
+        """Load the ETE tree from file"""
+        if self._tree is None:
             try:
-                logger.info("Loading tree with ETE toolkit")
-                
-                # Get the tree content
-                tree_content = self.species_repo.load_species_tree()
-                self._ete_tree = Tree(tree_content, format=1)
-                
-                # Add species count information to tree nodes
-                species_mapping = self.species_repo.load_species_mapping()
-                ortho_data = self.orthogroups_repo.load_orthogroups_data()
-                species_columns = self.orthogroups_repo.get_species_columns()
-                
-                # Map species to tree nodes
-                for leaf in self._ete_tree.get_leaves():
-                    leaf_name = leaf.name.strip().strip('"\'')
-                    enhanced_mapping = species_mapping.get('id_to_full', {})
-                    
-                    if leaf_name in enhanced_mapping:
-                        full_name = enhanced_mapping[leaf_name]
-                        leaf.add_feature("full_species_name", full_name)
-                        leaf.add_feature("species_code", leaf_name)
-                        
-                        # Count genes for this species
-                        if leaf_name in species_columns:
-                            gene_count = 0
-                            for _, row in ortho_data.iterrows():
-                                cell_value = row[leaf_name]
-                                if isinstance(cell_value, str) and cell_value.strip():
-                                    genes = [g.strip() for g in cell_value.split(',') if g.strip()]
-                                    gene_count += len(genes)
-                            leaf.add_feature("gene_count", gene_count)
-                
-                logger.info(f"ETE tree loaded with {len(self._ete_tree.get_leaves())} leaves")
-                
+                logger.info(f"Loading ETE tree from {self.tree_file}")
+                self._tree = Tree(self.tree_file, format=1)
+                logger.info("ETE tree loaded successfully")
             except Exception as e:
                 logger.error(f"Failed to load ETE tree: {str(e)}")
-                # Create a simple fallback tree
-                self._ete_tree = Tree("(A:1,B:1);")
-        
-        return self._ete_tree
+                raise
+        return self._tree
     
     def search_tree_by_gene(self, gene_id: str, max_results: int = 50) -> List[ETESearchResult]:
         """Search for species containing a specific gene."""
@@ -346,31 +314,79 @@ class ETETreeService:
             )
     
     def get_ete_status(self) -> Dict[str, Any]:
-        """Check ETE3 toolkit availability and status."""
+        """Check ETE toolkit status and availability"""
         try:
-            if not ETE_AVAILABLE:
-                return {
-                    "success": False,
-                    "ete_available": False,
-                    "message": "ETE3 toolkit not installed. Install with: conda install -c etetoolkit ete3"
-                }
-            
-            # Test ETE functionality
             tree = self.load_ete_tree()
-            leaf_count = len(tree.get_leaves())
-            
             return {
                 "success": True,
-                "ete_available": True,
+                "available": True,
                 "tree_loaded": True,
-                "leaf_count": leaf_count,
-                "message": f"ETE3 toolkit ready with {leaf_count} species"
+                "num_leaves": len(tree.get_leaves()),
+                "tree_format": tree.get_tree_root().get_tree_root().write(format=1)[:100] + "..."
             }
-        
         except Exception as e:
             return {
                 "success": False,
-                "ete_available": ETE_AVAILABLE,
-                "error": str(e),
-                "message": f"ETE3 error: {str(e)}"
+                "available": False,
+                "error": str(e)
             }
+
+    def render_tree(self, tree_data: str, selected_species: Optional[str] = None) -> str:
+        """Render a tree with ETE toolkit"""
+        try:
+            # Create a tree from the Newick data
+            tree = Tree(tree_data, format=1)
+
+            # Create a TreeStyle
+            ts = TreeStyle()
+            ts.show_leaf_name = True
+            ts.show_branch_length = True
+            ts.show_branch_support = True
+            ts.scale = 120  # pixels per branch length unit
+            ts.branch_vertical_margin = 10  # pixels between adjacent branches
+
+            # Create styles for different node types
+            default_style = NodeStyle()
+            default_style["size"] = 5
+            default_style["fgcolor"] = "#000000"
+            default_style["shape"] = "circle"
+
+            selected_style = NodeStyle()
+            selected_style["size"] = 8
+            selected_style["fgcolor"] = "#1976d2"
+            selected_style["shape"] = "circle"
+
+            # Apply styles to nodes
+            for node in tree.traverse():
+                if selected_species and node.name == selected_species:
+                    node.set_style(selected_style)
+                else:
+                    node.set_style(default_style)
+
+            # Render the tree to a temporary PNG file
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tree.render(tmp.name, tree_style=ts)
+                # Read the file and convert to base64
+                with open(tmp.name, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode()
+                os.unlink(tmp.name)
+                return encoded_string
+
+        except Exception as e:
+            logger.error(f"Error rendering tree: {str(e)}")
+            raise
+
+    def analyze_tree(self, tree_data: str) -> Dict[str, Any]:
+        """Analyze a tree using ETE toolkit"""
+        try:
+            tree = Tree(tree_data, format=1)
+            return {
+                "num_leaves": len(tree.get_leaves()),
+                "total_nodes": len(tree.get_descendants()) + 1,
+                "tree_height": tree.get_farthest_leaf()[1],
+                "is_binary": tree.is_binary(),
+                "leaf_names": [leaf.name for leaf in tree.get_leaves()][:10]  # First 10 leaves
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing tree: {str(e)}")
+            raise

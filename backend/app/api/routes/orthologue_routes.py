@@ -24,46 +24,12 @@ async def search_orthologues(request: OrthologueSearchRequest):
     """Search for orthologues of a given gene"""
     return await orthologue_service.search_orthologues(request)
 
-@router.post("/ete-search", response_model=ETESearchResponse)
-async def ete_tree_search(request: ETESearchRequest):
-    """Advanced tree-based search using ETE toolkit"""
+@router.post("/ete/search", response_model=ETESearchResponse)
+async def search_orthologues_ete(request: ETESearchRequest):
+    """Search for orthologues using ETE toolkit"""
     try:
-        if request.search_type == "gene":
-            results = ete_tree_service.search_tree_by_gene(request.query, request.max_results)
-        elif request.search_type == "species":
-            results = ete_tree_service.search_tree_by_species(request.query, request.max_results)
-        elif request.search_type == "clade":
-            results = ete_tree_service.search_tree_by_clade(request.query, request.max_results)
-        elif request.search_type == "common_ancestor":
-            # Parse comma-separated species list
-            species_list = [s.strip() for s in request.query.split(",")]
-            results = ete_tree_service.find_common_ancestor(species_list)
-        else:
-            return ETESearchResponse(
-                success=False,
-                query=request.query,
-                search_type=request.search_type,
-                results=[],
-                total_results=0,
-                message=f"Unknown search type: {request.search_type}"
-            )
-        
-        # Generate tree image if requested
-        tree_image = None
-        if request.include_tree_image and results:
-            highlighted_nodes = [r.node_name for r in results[:5]]  # Highlight first 5 results
-            tree_image = ete_tree_service.generate_tree_image(highlighted_nodes)
-        
-        return ETESearchResponse(
-            success=True,
-            query=request.query,
-            search_type=request.search_type,
-            results=results,
-            total_results=len(results),
-            tree_image=tree_image,
-            message=f"Found {len(results)} results"
-        )
-        
+        # Call the ETE tree service to perform the search
+        return await ete_tree_service.ete_search(request)
     except Exception as e:
         return ETESearchResponse(
             success=False,
@@ -71,27 +37,44 @@ async def ete_tree_search(request: ETESearchRequest):
             search_type=request.search_type,
             results=[],
             total_results=0,
-            message=f"Search failed: {str(e)}"
+            message=f"Error in ETE search: {str(e)}"
         )
 
-@router.get("/tree")
-async def get_orthologue_tree() -> Dict[str, Any]:
-    """Get the phylogenetic species tree in Newick format"""
+@router.get("/ete/tree/{orthogroup_id}")
+async def get_orthologue_ete_tree(orthogroup_id: str) -> Dict[str, Any]:
+    """Get the ETE-enhanced phylogenetic tree for an orthogroup"""
     try:
-        species_tree = ete_tree_service.load_ete_tree()
-        return {
-            "success": True,
-            "newick": species_tree.write()
-        }
+        # Get the basic tree data
+        tree_data = await orthologue_service.get_orthogroup_tree(orthogroup_id)
+        
+        if not tree_data.get("success"):
+            return tree_data
+        
+        # Enhance with ETE analysis
+        newick_tree = tree_data.get("newick")
+        if newick_tree:
+            analysis = ete_tree_service.analyze_tree(newick_tree)
+            tree_image = ete_tree_service.render_tree(newick_tree)
+            
+            return {
+                "success": True,
+                "orthogroup_id": orthogroup_id,
+                "newick": newick_tree,
+                "analysis": analysis,
+                "tree_image": tree_image
+            }
+        
+        return tree_data
+
     except Exception as e:
         return {
             "success": False,
-            "message": f"Failed to load species tree: {str(e)}"
+            "message": f"Failed to get ETE tree: {str(e)}"
         }
 
-@router.get("/ete-status")
+@router.get("/ete/status")
 async def get_ete_status() -> Dict[str, Any]:
-    """Check ETE3 toolkit availability and status"""
+    """Check ETE toolkit availability and status"""
     return ete_tree_service.get_ete_status()
 
 # Debug endpoint to check species mapping (remove after testing)

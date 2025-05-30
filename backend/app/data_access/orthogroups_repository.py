@@ -1,9 +1,9 @@
 import os
 import pandas as pd
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from fastapi import HTTPException
-
+from functools import lru_cache
 from app.core.config import get_settings
 
 # Configure logging
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 class OrthogroupsRepository:
-    """Repository for handling orthogroups data access"""
+    """Repository for handling orthogroups data access with optimized loading"""
     
     def __init__(self):
         """Initialize the repository with data paths"""
@@ -19,43 +19,106 @@ class OrthogroupsRepository:
         self.DATA_DIR = os.path.join(self.BASE_DIR, "data/orthofinder")
         self.ORTHOGROUPS_FILE = os.path.join(self.DATA_DIR, "Orthogroups_clean_121124.txt")
         
+        # Chunk size for data loading (adjust based on your memory constraints)
+        self.CHUNK_SIZE = 1000
+        
         # Cache
-        self._orthogroups_data = None
+        self._orthogroups_chunks = {}
         self._gene_map = {}
+        self._total_chunks = None
 
-    def load_orthogroups_data(self) -> pd.DataFrame:
-        """Load orthogroups data from CSV file"""
-        if self._orthogroups_data is None:
+    @lru_cache(maxsize=128)
+    def get_chunk(self, chunk_index: int) -> pd.DataFrame:
+        """Get a specific chunk of data with caching"""
+        if chunk_index not in self._orthogroups_chunks:
             try:
-                logger.info(f"Loading orthogroups data from {self.ORTHOGROUPS_FILE}")
                 sep = '\t' if self.ORTHOGROUPS_FILE.endswith(('.tsv', '.txt')) else ','
-                self._orthogroups_data = pd.read_csv(self.ORTHOGROUPS_FILE, sep=sep, low_memory=False)
-                logger.info(f"Orthogroups data loaded successfully: {self._orthogroups_data.shape}")
+                skip_rows = chunk_index * self.CHUNK_SIZE
                 
-                # Build gene mapping
-                self._gene_map = self._build_gene_to_orthogroup_map()
-                logger.info(f"Gene mapping built with {len(self._gene_map)} entries")
+                # Read only the chunk we need
+                chunk = pd.read_csv(
+                    self.ORTHOGROUPS_FILE,
+                    sep=sep,
+                    skiprows=skip_rows,
+                    nrows=self.CHUNK_SIZE,
+                    low_memory=False,
+                    dtype=str,  # Optimize memory usage
+                    na_filter=False  # Don't convert empty strings to NaN
+                )
+                
+                self._orthogroups_chunks[chunk_index] = chunk
+                logger.info(f"Loaded chunk {chunk_index} successfully")
                 
             except Exception as e:
-                logger.error(f"Failed to load orthogroups data: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
-        
-        return self._orthogroups_data
+                logger.error(f"Failed to load chunk {chunk_index}: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to load chunk {chunk_index}: {str(e)}")
+                
+        return self._orthogroups_chunks[chunk_index]
 
-    def _build_gene_to_orthogroup_map(self) -> Dict[str, str]:
-        """Build mapping from gene IDs to orthogroup IDs"""
+    def get_total_chunks(self) -> int:
+        """Get total number of chunks in the dataset"""
+        if self._total_chunks is None:
+            try:
+                # Count lines in file efficiently
+                with open(self.ORTHOGROUPS_FILE) as f:
+                    total_lines = sum(1 for _ in f) - 1  # Subtract header
+                self._total_chunks = (total_lines + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+            except Exception as e:
+                logger.error(f"Failed to count total chunks: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))
+        return self._total_chunks
+
+    def load_orthogroups_data(self, page: int = 1, per_page: int = 100) -> Tuple[pd.DataFrame, dict]:
+        """Load orthogroups data with pagination"""
+        try:
+            # Calculate which chunks we need for this page
+            start_index = (page - 1) * per_page
+            chunk_start = start_index // self.CHUNK_SIZE
+            chunk_end = (start_index + per_page + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+            
+            # Load required chunks
+            chunks = []
+            for i in range(chunk_start, chunk_end):
+                if i >= self.get_total_chunks():
+                    break
+                chunks.append(self.get_chunk(i))
+            
+            if not chunks:
+                return pd.DataFrame(), {"total": 0, "page": page, "per_page": per_page, "pages": 0}
+            
+            # Combine chunks and extract the requested page
+            combined_df = pd.concat(chunks, ignore_index=True)
+            start_offset = start_index % self.CHUNK_SIZE
+            result_df = combined_df.iloc[start_offset:start_offset + per_page]
+            
+            # Build gene mapping for this chunk if needed
+            if not self._gene_map:
+                self._gene_map = self._build_gene_to_orthogroup_map(result_df)
+            
+            total_records = self.get_total_chunks() * self.CHUNK_SIZE
+            total_pages = (total_records + per_page - 1) // per_page
+            
+            pagination = {
+                "total": total_records,
+                "page": page,
+                "per_page": per_page,
+                "pages": total_pages
+            }
+            
+            return result_df, pagination
+            
+        except Exception as e:
+            logger.error(f"Failed to load orthogroups data: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
+
+    def _build_gene_to_orthogroup_map(self, df: pd.DataFrame) -> Dict[str, str]:
+        """Build gene to orthogroup mapping for faster lookups"""
         gene_map = {}
-        df = self._orthogroups_data
-        
-        for _, row in df.iterrows():
-            orthogroup_id = row[df.columns[0]]
-            for col in df.columns[1:]:
-                cell_value = row[col]
-                if isinstance(cell_value, str) and cell_value.strip():
-                    genes = [g.strip() for g in cell_value.split(',')]
-                    for gene in genes:
-                        gene_map[gene] = orthogroup_id
-        
+        for idx, row in df.iterrows():
+            orthogroup_id = row.get('Orthogroup')
+            if orthogroup_id:
+                for gene in row.dropna().values[1:]:  # Skip orthogroup column
+                    gene_map[gene] = orthogroup_id
         return gene_map
 
     def get_orthogroup_genes(self, orthogroup_id: str) -> Dict[str, List[str]]:

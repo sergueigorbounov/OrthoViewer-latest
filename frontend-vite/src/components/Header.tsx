@@ -13,6 +13,7 @@ import BiotechIcon from '@mui/icons-material/Biotech';
 // Define the navigation links - including the new ETE Tree Search
 const navLinks = [
   { name: 'Orthologues', path: '/orthologues' },
+  { name: 'Orthologues (ETE)', path: '/orthologues-ete' },
   { name: 'ETE Tree Search', path: '/ete-search' },
 ];
 

@@ -15,8 +15,8 @@ try:
         SpeciesResponse, OrthoGroupResponse, GeneResponse, GeneDetailResponse,
         DashboardResponse, DashboardData, NameValuePair, GeneByOrthogroup
     )
-    from .api.phylo import router as phylo_router
-    from .api.orthologue import router as orthologue_router
+    from .api.routes.phylo_routes import router as phylo_router
+    from .api.routes.orthologue_routes import router as orthologue_router
 except ImportError:
     # For direct module execution
     from app.models.biological_models import (
@@ -24,8 +24,8 @@ except ImportError:
         SpeciesResponse, OrthoGroupResponse, GeneResponse, GeneDetailResponse,
         DashboardResponse, DashboardData, NameValuePair, GeneByOrthogroup
     )
-    from app.api.phylo import router as phylo_router
-    from app.api.orthologue import router as orthologue_router
+    from app.api.routes.phylo_routes import router as phylo_router
+    from app.api.routes.orthologue_routes import router as orthologue_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -42,6 +42,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(phylo_router)
+app.include_router(orthologue_router)
 
 # Helper function to load mock data
 def load_mock_data(filename: str) -> Dict[str, Any]:
@@ -549,10 +553,6 @@ async def analyze(data: Dict[str, Any]):
     }
     
     return analysis_results
-
-# Include routers
-app.include_router(phylo_router)
-app.include_router(orthologue_router)
 
 # Run the app with uvicorn if this file is executed directly
 if __name__ == "__main__":

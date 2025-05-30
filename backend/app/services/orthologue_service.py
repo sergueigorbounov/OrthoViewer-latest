@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from app.models.phylo import (
     OrthologueSearchRequest, OrthologueSearchResponse,
@@ -55,6 +55,9 @@ class OrthologueService:
             # Process results
             start_time = time.time()
             
+            # Get species tree
+            species_tree = self.species_repo.load_species_tree()
+            
             # Prepare response data
             orthologues = []
             counts_by_species = []
@@ -63,39 +66,27 @@ class OrthologueService:
             all_species = set(self.orthogroups_repo.get_species_columns())
             
             # Process each species
-            for species_code in all_species:
-                # Get full species name
-                species_name = self.species_repo.get_species_full_name(species_code)
+            for species_id in all_species:
+                species_name = self.species_repo.get_species_full_name(species_id)
+                genes = genes_by_species.get(species_id, [])
                 
-                # Get genes for this species
-                species_genes = genes_by_species.get(species_code, [])
+                # Add to counts
+                counts_by_species.append(OrthoSpeciesCount(
+                    species_name=species_name,
+                    count=len(genes)
+                ))
                 
-                # Add count for this species
-                counts_by_species.append(
-                    OrthoSpeciesCount(
-                        species_id=species_code,
+                # Add each gene as an orthologue
+                for gene in genes:
+                    orthologues.append(OrthologueData(
+                        gene_id=gene,
                         species_name=species_name,
-                        count=len(species_genes)
-                    )
-                )
-                
-                # Add orthologue data for each gene
-                for gene in species_genes:
-                    if gene != gene_id:  # Don't include the query gene itself
-                        orthologues.append(
-                            OrthologueData(
-                                gene_id=gene,
-                                species_id=species_code,
-                                species_name=species_name,
-                                orthogroup_id=orthogroup_id
-                            )
-                        )
+                        species_id=species_id,
+                        orthogroup_id=orthogroup_id
+                    ))
             
-            # Sort orthologues by species name
-            orthologues.sort(key=lambda x: x.species_name)
-            
-            # Get species tree
-            species_tree = self.species_repo.load_species_tree()
+            process_time = time.time() - start_time
+            logger.info(f"Time to process results: {process_time:.2f} seconds")
             
             # Create response
             response = OrthologueSearchResponse(
@@ -106,10 +97,6 @@ class OrthologueService:
                 counts_by_species=counts_by_species,
                 newick_tree=species_tree
             )
-            
-            # Log processing time
-            process_time = time.time() - start_time
-            logger.info(f"Time to process results: {process_time:.2f} seconds")
             
             # Log total time
             total_time = find_time + get_genes_time + process_time
@@ -124,3 +111,36 @@ class OrthologueService:
                 gene_id=gene_id,
                 message=f"Error searching for orthologues: {str(e)}"
             )
+
+    async def get_orthogroup_tree(self, orthogroup_id: str) -> Dict[str, Any]:
+        """Get the phylogenetic tree for a specific orthogroup"""
+        try:
+            # Get the species tree
+            species_tree = self.species_repo.load_species_tree()
+            
+            # Get all genes in the orthogroup
+            genes_by_species = self.orthogroups_repo.get_orthogroup_genes(orthogroup_id)
+            
+            if not genes_by_species:
+                return {
+                    "success": False,
+                    "message": f"Orthogroup {orthogroup_id} not found"
+                }
+            
+            # Get species with genes in this orthogroup
+            species_with_genes = set(genes_by_species.keys())
+            
+            return {
+                "success": True,
+                "orthogroup_id": orthogroup_id,
+                "newick": species_tree,
+                "species_with_genes": list(species_with_genes),
+                "total_species": len(species_with_genes)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting orthogroup tree: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"Error getting orthogroup tree: {str(e)}"
+            }

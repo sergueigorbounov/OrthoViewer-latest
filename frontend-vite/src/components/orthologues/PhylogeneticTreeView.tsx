@@ -118,48 +118,59 @@ const D3TreeImplementation: React.FC<{
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-// Helper function to check if two species names match
-const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
-  if (!name1 || !name2) return false;
-  
-  const normalized1 = name1.toLowerCase().trim();
-  const normalized2 = name2.toLowerCase().trim();
-  
-  // Direct match - primary matching method for strict selection
-  if (normalized1 === normalized2) return true;
-  
-  // For tree visualization, we still need some flexibility to match species
-  // in the tree with those in the data, so we'll keep some broader matching
-  // but with higher threshold requirements
-  
-  // Check if full name exactly contains the other (for species variants)
-  // E.g. "Brassica napus" should match "Brassica napus (variant BnA)"
-  const containsExact = normalized1.includes(normalized2) || normalized2.includes(normalized1);
-  if (containsExact && (normalized1.length > 5 || normalized2.length > 5)) {
-    return true;
-  }
-  
-  // Try genus matching for tree nodes which often use abbreviated names
-  const genus1 = normalized1.split(/[\s_]/)[0];
-  const genus2 = normalized2.split(/[\s_]/)[0];
-  
-  // Only match by genus if the genus is substantial (not 1-2 letter codes)
-  // and the species IDs look similar
-  if (genus1 === genus2 && genus1.length > 3) {
-    // Additional check - the species parts should have some similarity
-    const species1 = normalized1.substring(genus1.length).trim();
-    const species2 = normalized2.substring(genus2.length).trim();
+  // Helper function to count leaves
+  const countLeaves = useCallback((node: TreeNode): number => {
+    if (!node.children || node.children.length === 0) {
+      return 1;
+    }
+    return node.children.reduce((sum, child) => sum + countLeaves(child), 0);
+  }, []);
+
+  // Calculate leaf count for adaptive sizing
+  const leafCount = treeData ? countLeaves(treeData) : 0;
+
+  // Helper function to check if two species names match
+  const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
+    if (!name1 || !name2) return false;
     
-    // If either species part is empty, or they share first 3 letters when substantial
-    if (!species1 || !species2 || 
-        (species1.length > 3 && species2.length > 3 && 
-         species1.substring(0, 3) === species2.substring(0, 3))) {
+    const normalized1 = name1.toLowerCase().trim();
+    const normalized2 = name2.toLowerCase().trim();
+    
+    // Direct match - primary matching method for strict selection
+    if (normalized1 === normalized2) return true;
+    
+    // For tree visualization, we still need some flexibility to match species
+    // in the tree with those in the data, so we'll keep some broader matching
+    // but with higher threshold requirements
+    
+    // Check if full name exactly contains the other (for species variants)
+    // E.g. "Brassica napus" should match "Brassica napus (variant BnA)"
+    const containsExact = normalized1.includes(normalized2) || normalized2.includes(normalized1);
+    if (containsExact && (normalized1.length > 5 || normalized2.length > 5)) {
       return true;
     }
-  }
-  
-  return false;
-}, []);
+    
+    // Try genus matching for tree nodes which often use abbreviated names
+    const genus1 = normalized1.split(/[\s_]/)[0];
+    const genus2 = normalized2.split(/[\s_]/)[0];
+    
+    // Only match by genus if the genus is substantial (not 1-2 letter codes)
+    // and the species IDs look similar
+    if (genus1 === genus2 && genus1.length > 3) {
+      // Additional check - the species parts should have some similarity
+      const species1 = normalized1.substring(genus1.length).trim();
+      const species2 = normalized2.substring(genus2.length).trim();
+      
+      // If either species part is empty, or they share first 3 letters when substantial
+      if (!species1 || !species2 || 
+          (species1.length > 3 && species2.length > 3 && 
+           species1.substring(0, 3) === species2.substring(0, 3))) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, []);
 
   // Function to get path from node to root
   const getPathToRoot = useCallback((node: d3.HierarchyNode<TreeNode> | null): string[] => {
@@ -174,6 +185,21 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
     }
     
     return path;
+  }, []);
+
+  // Function to calculate cumulative distance from root based on branch lengths
+  const calculateDistanceFromRoot = useCallback((node: d3.HierarchyNode<TreeNode>): number => {
+    let distance = 0;
+    let current: d3.HierarchyNode<TreeNode> | null = node;
+    
+    while (current && current.parent) {
+      // Use the branch length if available, otherwise use a default length
+      const branchLength = current.data.length || 0.1;
+      distance += branchLength;
+      current = current.parent;
+    }
+    
+    return distance;
   }, []);
 
   // Handle selected species from parent component
@@ -391,6 +417,33 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
   const renderTree = useCallback(() => {
     if (!svgRef.current || !treeData) return;
 
+    // Equal separation for standard phylogenetic tree appearance
+    const getEqualSeparation = (a: d3.HierarchyNode<TreeNode>, b: d3.HierarchyNode<TreeNode>): number => {
+      const isLeafA = !a.children || a.children.length === 0;
+      const isLeafB = !b.children || b.children.length === 0;
+      
+      // Base spacing that adapts to tree size for readability
+      let baseSpacing = 1.0;
+      if (leafCount > 150) baseSpacing = 0.6;
+      else if (leafCount > 100) baseSpacing = 0.7;
+      else if (leafCount > 75) baseSpacing = 0.8;
+      else if (leafCount > 50) baseSpacing = 0.9;
+      else if (leafCount > 25) baseSpacing = 1.0;
+      else baseSpacing = 1.2;
+      
+      // Equal spacing for all node types - standard phylogenetic style
+      if (isLeafA && isLeafB) {
+        // Equal spacing between leaves
+        return baseSpacing * 2.0;
+      } else if (isLeafA || isLeafB) {
+        // Equal spacing between leaf and internal
+        return baseSpacing * 1.8;
+      } else {
+        // Equal spacing between internal nodes
+        return baseSpacing * 1.2;
+      }
+    };
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -415,7 +468,9 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
     if (useRadialLayout) {
       g.attr('transform', `translate(${width / 2}, ${height / 2})`);
     } else {
-      g.attr('transform', `translate(${width * 0.08}, ${height / 2})`);
+      // Adjust left margin based on tree density
+      const leftMargin = leafCount > 50 ? width * 0.05 : width * 0.08;
+      g.attr('transform', `translate(${leftMargin}, ${height / 2})`);
     }
 
     const root = d3.hierarchy(treeData) as d3.HierarchyNode<TreeNode>;
@@ -429,73 +484,277 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
           const isLeafA = !a.children || a.children.length === 0;
           const isLeafB = !b.children || b.children.length === 0;
           
+          // Equal spacing for radial layout (similar to rectangular)
+          let baseSpacing = 1.0;
+          if (leafCount > 150) baseSpacing = 0.6;
+          else if (leafCount > 100) baseSpacing = 0.7;
+          else if (leafCount > 75) baseSpacing = 0.8;
+          else if (leafCount > 50) baseSpacing = 0.9;
+          else baseSpacing = 1.0;
+          
           if (isLeafA && isLeafB) {
-            return 2.5;
+            return baseSpacing * 1.5; // Equal spacing between leaves
           } else if (isLeafA || isLeafB) {
-            return 2.0;
+            return baseSpacing * 1.3;
           } else {
-            return 1.5;
+            return baseSpacing * 1.0;
           }
         });
         
       treeLayout(root);
       
-      const maxRadius = radius;
+      // Force equal angular spacing for all leaves in radial layout
+      const forceEqualRadialSpacing = () => {
+        const allLeaves = root.leaves();
+        if (allLeaves.length <= 1) return;
+        
+        // Sort leaves by their current angular position
+        allLeaves.sort((a, b) => (a.x || 0) - (b.x || 0));
+        
+        // Calculate perfectly equal angular spacing
+        const totalAngle = 2 * Math.PI;
+        const anglePerLeaf = totalAngle / allLeaves.length;
+        
+        // Assign perfectly equal angular positions
+        allLeaves.forEach((leaf, index) => {
+          leaf.x = index * anglePerLeaf;
+          leaf.y = radius; // All leaves at the same radius
+        });
+        
+        // Update internal node positions
+        const updateRadialInternalNodes = (node: d3.HierarchyNode<TreeNode>) => {
+          if (!node.children || node.children.length === 0) {
+            return; // This is a leaf
+          }
+          
+          // Position internal node at the center angle of its children
+          const childAngles = node.children.map(child => {
+            updateRadialInternalNodes(child);
+            return child.x || 0;
+          });
+          
+          // Handle angle wrapping for radial layout
+          let minAngle = Math.min(...childAngles);
+          let maxAngle = Math.max(...childAngles);
+          
+          // Check if we're wrapping around 2π
+          if (maxAngle - minAngle > Math.PI) {
+            // We're wrapping, so calculate the average differently
+            const avgAngle = childAngles.reduce((sum, angle) => {
+              return sum + (angle > Math.PI ? angle - 2 * Math.PI : angle);
+            }, 0) / childAngles.length;
+            node.x = avgAngle < 0 ? avgAngle + 2 * Math.PI : avgAngle;
+          } else {
+            node.x = (minAngle + maxAngle) / 2;
+          }
+        };
+        
+        updateRadialInternalNodes(root);
+      };
+      
+      forceEqualRadialSpacing();
+      
       root.each(d => {
         (d as any).polar = { angle: d.x, radius: d.y };
-        
-        if (!d.children || d.children.length === 0) {
-          d.y = maxRadius;
-        }
       });
     } else {
-      const treeHeight = height * 2.5;
+      // Standard tree layout dimensions for equal spacing
+      const treeHeight = Math.max(height * 1.0, leafCount * 18); // Standard 18px per leaf
       const treeWidth = width * 0.75;
       
+      // First, use the tree layout with equal spacing (standard phylogenetic style)
       const treeLayout = d3.tree<TreeNode>()
         .size([treeHeight, treeWidth])
-        .separation((a, b) => {
-          const isLeafA = !a.children || a.children.length === 0;
-          const isLeafB = !b.children || b.children.length === 0;
-          
-          if (isLeafA && isLeafB) {
-            return 3.5;
-          } else if (isLeafA || isLeafB) {
-            return 2.5;
-          } else {
-            return 1.5;
-          }
-        });
+        .separation(getEqualSeparation);
       
       treeLayout(root);
 
-      const minimizeCrossings = (node: d3.HierarchyNode<TreeNode>) => {
-        if (!node.children || node.children.length === 0) return;
-        
-        node.children.sort((a, b) => (a.x || 0) - (b.x || 0));
-        
-        node.children.forEach(child => minimizeCrossings(child));
-      };
-      
-      minimizeCrossings(root);
-      treeLayout(root);
+      // Now calculate the x-coordinates based on cumulative branch lengths
+      const maxDistance = Math.max(...root.descendants().map(d => calculateDistanceFromRoot(d)));
+      const xScale = d3.scaleLinear()
+        .domain([0, maxDistance])
+        .range([0, treeWidth]);
+
+      // Set x-coordinates based on distance from root for internal nodes
+      // But align all leaf nodes at the right extremity
       root.each(d => {
-        if (d.x !== undefined) {
-          d.x -= treeHeight / 3;
+        const isLeaf = !d.children || d.children.length === 0;
+        
+        if (isLeaf) {
+          // All leaves go to the right extremity
+          d.y = treeWidth;
+        } else {
+          // Internal nodes positioned based on evolutionary distance
+          const distanceFromRoot = calculateDistanceFromRoot(d);
+          d.y = xScale(distanceFromRoot);
         }
       });
+
+      // CRITICAL: Implement proper subtree separation to prevent line crossings
+      const assignNonOverlappingRanges = (node: d3.HierarchyNode<TreeNode>) => {
+        if (!node.children || node.children.length === 0) {
+          return;
+        }
+
+        // First, recursively process all children
+        node.children.forEach(child => assignNonOverlappingRanges(child));
+
+        // Sort children by their current x position to maintain order
+        node.children.sort((a, b) => (a.x || 0) - (b.x || 0));
+
+        // Equal subtree range calculation (standard phylogenetic style)
+        const getSubtreeRange = (subtreeRoot: d3.HierarchyNode<TreeNode>): [number, number] => {
+          const descendants = subtreeRoot.descendants();
+          const xPositions = descendants.map(d => d.x || 0);
+          const minX = Math.min(...xPositions);
+          const maxX = Math.max(...xPositions);
+          
+          // Equal padding for all subtrees - standard approach
+          const basePadding = 10;
+          
+          return [minX - basePadding, maxX + basePadding];
+        };
+
+        // Calculate required ranges for each child subtree
+        const childRanges = node.children.map(child => ({
+          child: child,
+          range: getSubtreeRange(child),
+          center: child.x || 0
+        }));
+
+        // Detect and resolve overlaps by shifting entire subtrees
+        for (let i = 1; i < childRanges.length; i++) {
+          const currentRange = childRanges[i];
+          const previousRange = childRanges[i - 1];
+
+          const currentMin = currentRange.range[0];
+          const previousMax = previousRange.range[1];
+
+          if (currentMin < previousMax) {
+            // Overlap detected! Shift with consistent buffer
+            const overlapAmount = previousMax - currentMin + 8;
+            
+            // Shift the current subtree
+            const shiftSubtree = (subtreeRoot: d3.HierarchyNode<TreeNode>, shift: number) => {
+              subtreeRoot.descendants().forEach(descendant => {
+                if (descendant.x !== undefined) {
+                  descendant.x += shift;
+                }
+              });
+            };
+
+            shiftSubtree(currentRange.child, overlapAmount);
+            
+            // Update the range after shifting
+            currentRange.range[0] += overlapAmount;
+            currentRange.range[1] += overlapAmount;
+            currentRange.center += overlapAmount;
+
+            // Shift all subsequent subtrees too
+            for (let j = i + 1; j < childRanges.length; j++) {
+              shiftSubtree(childRanges[j].child, overlapAmount);
+              childRanges[j].range[0] += overlapAmount;
+              childRanges[j].range[1] += overlapAmount;
+              childRanges[j].center += overlapAmount;
+            }
+          }
+        }
+
+        // Position the parent node at the center of its children's range
+        if (node.children.length > 0) {
+          const firstChildCenter = childRanges[0].center;
+          const lastChildCenter = childRanges[childRanges.length - 1].center;
+          node.x = (firstChildCenter + lastChildCenter) / 2;
+        }
+      };
+
+      // Apply the subtree separation algorithm
+      assignNonOverlappingRanges(root);
+
+      // CRITICAL: Force perfectly equal spacing for all leaves
+      const forceEqualLeafSpacing = () => {
+        const allLeaves = root.leaves();
+        if (allLeaves.length <= 1) return;
+        
+        // Sort leaves by their current vertical position
+        allLeaves.sort((a, b) => (a.x || 0) - (b.x || 0));
+        
+        // Calculate the total vertical space available
+        const totalHeight = treeHeight;
+        const padding = totalHeight * 0.1; // 10% padding on top and bottom
+        const availableHeight = totalHeight - (2 * padding);
+        
+        // Calculate perfectly equal spacing
+        const spacingBetweenLeaves = availableHeight / (allLeaves.length - 1);
+        
+        // Assign perfectly equal positions to all leaves
+        allLeaves.forEach((leaf, index) => {
+          leaf.x = -availableHeight/2 + (index * spacingBetweenLeaves);
+        });
+        
+        // Now propagate the changes up to internal nodes
+        const updateInternalNodePositions = (node: d3.HierarchyNode<TreeNode>) => {
+          if (!node.children || node.children.length === 0) {
+            return; // This is a leaf, already positioned
+          }
+          
+          // Position internal node at the center of its children
+          const childPositions = node.children.map(child => {
+            updateInternalNodePositions(child);
+            return child.x || 0;
+          });
+          
+          const minChildX = Math.min(...childPositions);
+          const maxChildX = Math.max(...childPositions);
+          node.x = (minChildX + maxChildX) / 2;
+        };
+        
+        updateInternalNodePositions(root);
+      };
       
-      const maxDepth = treeWidth;
-      root.each(d => {
-        if (!d.children || d.children.length === 0) {
-          d.y = maxDepth;
+      forceEqualLeafSpacing();
+
+      // Final adjustment to center the tree
+      const allNodes = root.descendants();
+      const minX = Math.min(...allNodes.map(d => d.x || 0));
+      const maxX = Math.max(...allNodes.map(d => d.x || 0));
+      const centerOffset = (maxX + minX) / 2;
+      
+      allNodes.forEach(d => {
+        if (d.x !== undefined) {
+          d.x -= centerOffset;
         }
       });
     }
 
     const nodeScale = d3.scaleLinear()
       .domain([0, d3.max(speciesCounts, d => d.count) || 1])
-      .range([3, 10]);
+      .range(leafCount > 100 ? [2, 6] : leafCount > 50 ? [3, 8] : [3, 10]);
+
+    // Color intensity scale based on count values
+    const colorIntensityScale = d3.scaleLinear()
+      .domain([0, d3.max(speciesCounts, d => d.count) || 1])
+      .range([0.3, 1.0]); // From 30% to 100% opacity
+
+    // Enhanced color scale for value-based intensity
+    const getNodeColor = (d: any, isSelected: boolean, isHighlighted: boolean): string => {
+      if (isSelected) {
+        return '#1976d2';
+      } else if (isHighlighted) {
+        return '#42a5f5';
+      } else if (d.data.count && d.data.count > 0) {
+        const intensity = colorIntensityScale(d.data.count);
+        return d3.interpolate('#90ee90', '#228B22')(intensity); // Light green to dark green
+      }
+      return '#9e9e9e';
+    };
+
+    const getNodeOpacity = (d: any): number => {
+      if (d.data.count && d.data.count > 0) {
+        return colorIntensityScale(d.data.count);
+      }
+      return 0.6; // Default opacity for nodes without data
+    };
 
     const getHighlightedPathToRoot = (nodeId: string | null): string[] => {
       if (!nodeId) return [];
@@ -629,14 +888,15 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
         return isLeaf ? 4 : 2;
       })
       .attr('fill', (d: any) => {
-        if (d.data.id === selectedNodeId) {
-          return '#1976d2';
-        } else if (highlightedPath.includes(d.data.id)) {
-          return '#42a5f5';
-        } else if (d.data.count && d.data.count > 0) {
-          return '#4caf50';
+        const isSelected = d.data.id === selectedNodeId;
+        const isHighlighted = highlightedPath.includes(d.data.id);
+        return getNodeColor(d, isSelected, isHighlighted);
+      })
+      .attr('fill-opacity', (d: any) => {
+        if (d.data.id === selectedNodeId || highlightedPath.includes(d.data.id)) {
+          return 1.0; // Full opacity for selected/highlighted
         }
-        return '#9e9e9e';
+        return getNodeOpacity(d);
       })
       .attr('stroke', (d: any) => {
         if (d.data.id === selectedNodeId) {
@@ -650,20 +910,38 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
         if (d.data.id === selectedNodeId) return 3;
         if (highlightedPath.includes(d.data.id)) return 2;
         return 1;
+      })
+      .attr('stroke-opacity', (d: any) => {
+        return getNodeOpacity(d);
       });
 
     nodes.append('text')
-      .attr('dy', '.31em')
+      .attr('class', 'species-label') // Add a clear class for selection
+      .attr('dy', (d: any) => {
+        // Better vertical centering, especially for nodes with long horizontal lines
+        const isLeaf = !d.children || d.children.length === 0;
+        if (!useRadialLayout && !isLeaf) {
+          // For internal nodes, position text higher to avoid branch lines
+          return '-12px';
+        }
+        return '0.35em';
+      })
       .attr('x', (d: any) => {
         if (useRadialLayout) {
           const angle = d.x;
-          return angle > Math.PI / 2 && angle < Math.PI * 3 / 2 ? -20 : 20; 
+          return angle > Math.PI / 2 && angle < Math.PI * 3 / 2 ? -25 : 25; 
         } else {
           const isLeaf = !d.children || d.children.length === 0;
           if (isLeaf) {
-            return 20;
+            // Position text much further from node for leaves to prevent overlap
+            const nodeRadius = d.data.count ? nodeScale(d.data.count) : 4;
+            const baseOffset = nodeRadius + 15;
+            // Add extra offset for very dense trees
+            const densityOffset = leafCount > 100 ? 5 : leafCount > 50 ? 3 : 0;
+            return baseOffset + densityOffset;
           } else {
-            return -20;
+            // Position text further left for internal nodes to avoid branch overlap
+            return -25;
           }
         }
       })
@@ -673,11 +951,7 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
           return angle > Math.PI / 2 && angle < Math.PI * 3 / 2 ? 'end' : 'start';
         } else {
           const isLeaf = !d.children || d.children.length === 0;
-          if (isLeaf) {
-            return 'start';
-          } else {
-            return 'end';
-          }
+          return isLeaf ? 'start' : 'end';
         }
       })
       .attr('transform', (d: any) => {
@@ -695,7 +969,53 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
           const name = d.data.name;
           const cleanName = name.replace(/^['"]|['"]$/g, '');
           
-          let displayName = cleanName.length > 16 ? cleanName.substring(0, 14) + '...' : cleanName;
+          // Store full name directly in data object for easy access
+          if (isLeaf) {
+            d.fullSpeciesName = cleanName;
+            d.speciesCount = d.data.count || 0;
+          }
+          
+          // More conservative truncation to prevent excessive cutting
+          let maxLength = 25;
+          if (leafCount > 150) maxLength = 14;
+          else if (leafCount > 100) maxLength = 16;
+          else if (leafCount > 75) maxLength = 18;
+          else if (leafCount > 50) maxLength = 20;
+          else if (leafCount > 25) maxLength = 22;
+          
+          // For very crowded areas, be more aggressive but not too much
+          const nodeDepth = d.depth || 0;
+          const siblingsCount = d.parent ? d.parent.children?.length || 1 : 1;
+          if (siblingsCount > 15) {
+            maxLength = Math.max(12, maxLength - 3);
+          } else if (siblingsCount > 10) {
+            maxLength = Math.max(14, maxLength - 2);
+          }
+          
+          // Better truncation that preserves important parts
+          let displayName = cleanName;
+          if (cleanName.length > maxLength) {
+            // Try to preserve genus and species parts
+            const parts = cleanName.split(' ');
+            if (parts.length > 1) {
+              const genus = parts[0];
+              const species = parts[1];
+              const genusShort = genus.length > 8 ? genus.substring(0, 8) + '.' : genus;
+              const speciesShort = species.length > 8 ? species.substring(0, 6) + '..' : species;
+              displayName = `${genusShort} ${speciesShort}`;
+              
+              if (displayName.length > maxLength) {
+                displayName = genusShort.substring(0, maxLength - 3) + '..';
+              }
+            } else {
+              displayName = cleanName.substring(0, maxLength - 2) + '..';
+            }
+          }
+          
+          // Store truncated version for restoration
+          if (isLeaf) {
+            d.truncatedName = displayName;
+          }
           
           if (d.data.count && d.data.count > 0) {
             displayName = `${displayName} (${d.data.count})`;
@@ -708,6 +1028,11 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
             if (matchCount && matchCount.count > 0) {
               displayName = `${displayName} (${matchCount.count})`;
             }
+          }
+          
+          // Store final display name with count for restoration
+          if (isLeaf) {
+            d.originalDisplayName = displayName;
           }
           
           return displayName;
@@ -729,14 +1054,38 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
           : 'normal';
       })
       .attr('font-size', (d: any) => {
-        return d.data.id === selectedNodeId ? '13px' : '12px';
+        // More reasonable font scaling
+        let fontSize = '12px';
+        if (leafCount > 200) fontSize = '9px';
+        else if (leafCount > 150) fontSize = '10px';
+        else if (leafCount > 100) fontSize = '10px';
+        else if (leafCount > 75) fontSize = '11px';
+        else if (leafCount > 50) fontSize = '11px';
+        else if (d.data.id === selectedNodeId) fontSize = '13px';
+        
+        return fontSize;
       })
       .attr('paint-order', 'stroke')
       .attr('stroke', (d: any) => {
-        return highlightedPath.includes(d.data.id) ? 'rgba(255,255,255,0.7)' : 'none';
+        // Stronger white outline for better contrast
+        if (highlightedPath.includes(d.data.id)) {
+          return 'rgba(255,255,255,0.95)';
+        } else if (!d.children || d.children.length === 0) {
+          // Add white outline to all leaf text for better readability
+          return 'rgba(255,255,255,0.8)';
+        } else {
+          // Add outline to internal node text too
+          return 'rgba(255,255,255,0.7)';
+        }
       })
       .attr('stroke-width', (d: any) => {
-        return highlightedPath.includes(d.data.id) ? '2px' : '0';
+        if (highlightedPath.includes(d.data.id)) {
+          return '3px';
+        } else if (!d.children || d.children.length === 0) {
+          return '2.5px';
+        } else {
+          return '2px';
+        }
       });
 
     nodes.append('title')
@@ -806,7 +1155,7 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
         .attr('fill', '#1976d2')
         .attr('opacity', 0.9);
     }
-  }, [treeData, svgRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch]);
+  }, [treeData, svgRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch, calculateDistanceFromRoot, leafCount]);
 
   useEffect(() => {
     renderTree();
@@ -854,8 +1203,26 @@ const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean 
       <svg 
         ref={svgRef} 
         width="100%" 
-        height={useRadialLayout ? "100%" : "250%"}
-        style={{ cursor: 'grab', minHeight: useRadialLayout ? "500px" : "1500px" }}
+        height={useRadialLayout ? "100%" : (() => {
+          // Standard height calculation for equal spacing
+          if (!treeData || leafCount === 0) return "100%";
+          
+          // Calculate space for equal spacing (standard phylogenetic style)
+          const baseHeight = leafCount * 18; // Standard spacing
+          const standardHeight = Math.max(baseHeight, 500);
+          const maxHeight = Math.min(standardHeight, 2200);
+          
+          return `${Math.max(100, (maxHeight / window.innerHeight) * 100)}%`;
+        })()}
+        style={{ 
+          cursor: 'grab', 
+          minHeight: useRadialLayout ? "500px" : (() => {
+            if (!treeData || leafCount === 0) return "500px";
+            const baseHeight = leafCount * 18;
+            const standardHeight = Math.max(baseHeight, 500); // Standard equal spacing
+            return `${standardHeight}px`;
+          })()
+        }}
       />
       
       <Typography 

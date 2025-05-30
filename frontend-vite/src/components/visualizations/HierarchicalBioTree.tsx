@@ -5,6 +5,7 @@ import { SearchIcon } from '../../components/icons';
 import axios from 'axios';
 import './HierarchicalBioTree.css';
 import api from '../../services/api';
+import InfiniteScroll from 'react-infinite-scroll-component';
 
 // Define the TreeNodeData interface
 export interface TreeNodeData {
@@ -22,18 +23,16 @@ export interface TreeNodeData {
 }
 
 interface HierarchicalBioTreeProps {
-  initialData: TreeNodeData;
-  width?: number;
-  height?: number;
+  initialData: TreeNodeData[];
+  onNodeSelect?: (node: TreeNodeData) => void;
 }
 
 const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({ 
-  initialData, 
-  width = 900, 
-  height = 700 
+  initialData,
+  onNodeSelect 
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [data, setData] = useState<TreeNodeData>(initialData);
+  const [data, setData] = useState<TreeNodeData[]>(initialData);
   const [loading, setLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [tooltip, setTooltip] = useState<{visible: boolean, content: string, x: number, y: number}>({
@@ -42,6 +41,10 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
     x: 0,
     y: 0
   });
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [perPage] = useState(100);
 
   // Generate tooltip content based on node data
   const generateTooltipContent = (node: TreeNodeData): string => {
@@ -92,8 +95,8 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
       return currentNode;
     };
     
-    setData(updateNode(data));
-  }, [data]);
+    setData(prev => prev.map(updateNode));
+  }, []);
   
   const updateTreeDataForCollapse = useCallback((nodeId: string, children: TreeNodeData[]): TreeNodeData => {
     // Function for collapsing nodes
@@ -117,7 +120,7 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
       return currentNode;
     };
     
-    return updateNode(data);
+    return updateNode(data.find(node => node.id === nodeId) || data[0]);
   }, [data]);
   
   const updateTreeDataForExpand = useCallback((nodeId: string, children: TreeNodeData[]): TreeNodeData => {
@@ -142,17 +145,45 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
       return currentNode;
     };
     
-    return updateNode(data);
+    return updateNode(data.find(node => node.id === nodeId) || data[0]);
   }, [data]);
+
+  const loadMoreData = useCallback(async () => {
+    if (!hasMore || loading) return;
+    
+    try {
+      const response = await api.get('/api/orthogroups', {
+        params: {
+          page: page,
+          per_page: perPage
+        }
+      });
+      
+      if (response.data.success) {
+        const newData = response.data.data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          type: 'orthogroup',
+          children: [],
+          _childrenLoaded: false
+        }));
+        
+        setData(prev => [...prev, ...newData]);
+        setPage(prev => prev + 1);
+        setHasMore(page < response.data.pagination.pages);
+      }
+    } catch (err) {
+      setError('Error loading more data');
+      setHasMore(false);
+    }
+  }, [page, perPage, hasMore, loading]);
 
   const handleNodeClick = useCallback(async (node: TreeNodeData) => {
     if (node._childrenLoaded) {
       // Toggle node expansion/collapse
       if (node.children && node.children.length > 0) {
-        // Collapse: store children and set children to empty array
         setData(updateTreeDataForCollapse(node.id, node.children));
       } else if (node._children && node._children.length > 0) {
-        // Expand: restore children from _children
         setData(updateTreeDataForExpand(node.id, node._children));
       }
       return;
@@ -161,9 +192,7 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
     setLoading(node.id);
     
     try {
-      // Load children based on node type
       if (node.type === 'species') {
-        // Load orthogroups for this species
         const response = await api.get(`/api/species/${node.id}/orthogroups`);
         if (response.data.success) {
           const orthogroups = response.data.data.map((og: any) => ({
@@ -175,12 +204,10 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
             _childrenLoaded: false
           }));
           
-          // Update the data to include the orthogroups
           updateTreeData(node.id, orthogroups);
         }
       } 
       else if (node.type === 'orthogroup') {
-        // Load genes for this orthogroup
         const response = await api.get(`/api/orthogroup/${node.id}/genes`);
         if (response.data.success) {
           const genes = response.data.data.map((gene: any) => ({
@@ -193,12 +220,11 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
             _childrenLoaded: true
           }));
           
-          // Update the data to include the genes
           updateTreeData(node.id, genes);
         }
       }
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch (err) {
+      setError(`Error loading children for ${node.name}`);
     } finally {
       setLoading(null);
     }
@@ -491,6 +517,32 @@ const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({
           }}
         >
           <CircularProgress size={30} />
+        </Box>
+      )}
+      
+      {/* Infinite Scroll */}
+      <InfiniteScroll
+        dataLength={data.length}
+        next={loadMoreData}
+        hasMore={hasMore}
+        loader={<CircularProgress />}
+        scrollableTarget="hierarchical-tree"
+      >
+        {data.map(node => (
+          <TreeNode
+            key={node.id}
+            node={node}
+            onNodeClick={handleNodeClick}
+            onNodeSelect={onNodeSelect}
+            isLoading={loading === node.id}
+          />
+        ))}
+      </InfiniteScroll>
+      
+      {/* Error message */}
+      {error && (
+        <Box sx={{ color: 'error.main', mt: 2, textAlign: 'center' }}>
+          {error}
         </Box>
       )}
     </Box>
