@@ -15,39 +15,49 @@ class OrthogroupsRepository:
     
     def __init__(self):
         """Initialize the repository with data paths"""
-        self.BASE_DIR = "/home/sgorbounov/Documents/orthoviewer2-clean"
-        self.DATA_DIR = os.path.join(self.BASE_DIR, "data/orthofinder")
-        self.ORTHOGROUPS_FILE = os.path.join(self.DATA_DIR, "Orthogroups_clean_121124.txt")
+        self.DATA_DIR = settings.DATA_DIR
+        self.ORTHOGROUPS_FILE = settings.ORTHOGROUPS_FILE
         
-        # Chunk size for data loading (adjust based on your memory constraints)
-        self.CHUNK_SIZE = 1000
+        # Optimize chunk size for better performance
+        self.CHUNK_SIZE = 500  # Reduced from 1000 for faster loading
         
-        # Cache
+        # Enhanced caching
         self._orthogroups_chunks = {}
         self._gene_map = {}
         self._total_chunks = None
+        self._header = None
+        self._file_size = None
 
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=256)  # Increased cache size
     def get_chunk(self, chunk_index: int) -> pd.DataFrame:
         """Get a specific chunk of data with caching"""
         if chunk_index not in self._orthogroups_chunks:
             try:
                 sep = '\t' if self.ORTHOGROUPS_FILE.endswith(('.tsv', '.txt')) else ','
-                skip_rows = chunk_index * self.CHUNK_SIZE
                 
-                # Read only the chunk we need
+                # Read header only once
+                if self._header is None:
+                    with open(self.ORTHOGROUPS_FILE, 'r') as f:
+                        self._header = f.readline().strip().split(sep)
+                
+                # Calculate exact position to start reading
+                skip_rows = chunk_index * self.CHUNK_SIZE + 1  # +1 for header
+                
+                # Read chunk with optimized settings
                 chunk = pd.read_csv(
                     self.ORTHOGROUPS_FILE,
                     sep=sep,
                     skiprows=skip_rows,
                     nrows=self.CHUNK_SIZE,
-                    low_memory=False,
+                    names=self._header,
+                    memory_map=True,  # Memory mapping for better performance
+                    low_memory=True,
                     dtype=str,  # Optimize memory usage
-                    na_filter=False  # Don't convert empty strings to NaN
+                    na_filter=False,  # Don't convert empty strings to NaN
+                    engine='c'  # Use the C engine for better performance
                 )
                 
                 self._orthogroups_chunks[chunk_index] = chunk
-                logger.info(f"Loaded chunk {chunk_index} successfully")
                 
             except Exception as e:
                 logger.error(f"Failed to load chunk {chunk_index}: {str(e)}")
@@ -59,10 +69,17 @@ class OrthogroupsRepository:
         """Get total number of chunks in the dataset"""
         if self._total_chunks is None:
             try:
-                # Count lines in file efficiently
-                with open(self.ORTHOGROUPS_FILE) as f:
-                    total_lines = sum(1 for _ in f) - 1  # Subtract header
-                self._total_chunks = (total_lines + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+                # Get file size only once
+                if self._file_size is None:
+                    self._file_size = os.path.getsize(self.ORTHOGROUPS_FILE)
+                
+                # Estimate total lines based on first chunk size
+                first_chunk = self.get_chunk(0)
+                avg_line_size = len(first_chunk.to_csv(index=False).encode('utf-8')) / len(first_chunk)
+                estimated_lines = int(self._file_size / avg_line_size)
+                
+                self._total_chunks = (estimated_lines + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+                
             except Exception as e:
                 logger.error(f"Failed to count total chunks: {str(e)}")
                 raise HTTPException(status_code=500, detail=str(e))
@@ -71,27 +88,38 @@ class OrthogroupsRepository:
     def load_orthogroups_data(self, page: int = 1, per_page: int = 100) -> Tuple[pd.DataFrame, dict]:
         """Load orthogroups data with pagination"""
         try:
-            # Calculate which chunks we need for this page
+            # Optimize chunk calculation
             start_index = (page - 1) * per_page
             chunk_start = start_index // self.CHUNK_SIZE
             chunk_end = (start_index + per_page + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
             
-            # Load required chunks
+            # Load required chunks in parallel if multiple chunks needed
             chunks = []
-            for i in range(chunk_start, chunk_end):
-                if i >= self.get_total_chunks():
-                    break
-                chunks.append(self.get_chunk(i))
+            if chunk_end - chunk_start > 1:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    chunk_futures = [executor.submit(self.get_chunk, i) 
+                                   for i in range(chunk_start, min(chunk_end, self.get_total_chunks()))]
+                    chunks = [future.result() for future in chunk_futures]
+            else:
+                # Single chunk optimization
+                if chunk_start < self.get_total_chunks():
+                    chunks = [self.get_chunk(chunk_start)]
             
             if not chunks:
                 return pd.DataFrame(), {"total": 0, "page": page, "per_page": per_page, "pages": 0}
             
-            # Combine chunks and extract the requested page
-            combined_df = pd.concat(chunks, ignore_index=True)
-            start_offset = start_index % self.CHUNK_SIZE
-            result_df = combined_df.iloc[start_offset:start_offset + per_page]
+            # Optimize data combination
+            if len(chunks) == 1:
+                combined_df = chunks[0]
+            else:
+                combined_df = pd.concat(chunks, ignore_index=True, copy=False)
             
-            # Build gene mapping for this chunk if needed
+            # Extract the requested page efficiently
+            start_offset = start_index % self.CHUNK_SIZE
+            result_df = combined_df.iloc[start_offset:start_offset + per_page].copy()
+            
+            # Build gene mapping only if needed
             if not self._gene_map:
                 self._gene_map = self._build_gene_to_orthogroup_map(result_df)
             
@@ -106,19 +134,22 @@ class OrthogroupsRepository:
             }
             
             return result_df, pagination
-            
+                
         except Exception as e:
-            logger.error(f"Failed to load orthogroups data: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
-
+                logger.error(f"Failed to load orthogroups data: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
+        
     def _build_gene_to_orthogroup_map(self, df: pd.DataFrame) -> Dict[str, str]:
         """Build gene to orthogroup mapping for faster lookups"""
         gene_map = {}
+        # Optimize mapping creation
         for idx, row in df.iterrows():
             orthogroup_id = row.get('Orthogroup')
             if orthogroup_id:
-                for gene in row.dropna().values[1:]:  # Skip orthogroup column
-                    gene_map[gene] = orthogroup_id
+                # Use numpy operations for better performance
+                genes = row.iloc[1:].values
+                for gene in genes[pd.notna(genes)]:
+                        gene_map[gene] = orthogroup_id
         return gene_map
 
     def get_orthogroup_genes(self, orthogroup_id: str) -> Dict[str, List[str]]:

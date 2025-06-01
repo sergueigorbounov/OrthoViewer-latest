@@ -1,28 +1,21 @@
-name: orthoviewer2
+name: orthoviewer
 channels:
   - conda-forge
-  - bioconda
   - defaults
-
 dependencies:
-  - python=3.10
-  - pip
-  - numpy
+  - python=3.9
+  - fastapi>=0.68.0
+  - uvicorn>=0.15.0
+  - pydantic>=1.8.0
+  - python-multipart>=0.0.5
+  - prometheus-client>=0.16.0
+  - psutil>=5.9.0
   - pandas
-  - scipy
   - ete3
-  - biopython
-  - fastapi
-  - uvicorn
-  - pydantic
-  - aiofiles
-  - python-multipart
   - pytest
-  - pytest-asyncio
   - pytest-cov
-  - black
-  - flake8
   - mypy
+  - flake8
+  - pip
   - pip:
-    - pytest-mock
-    - httpx
+    - pytest-asyncio

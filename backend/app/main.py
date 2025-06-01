@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+import logging
+import time
+from .core.monitoring import start_metrics_server, monitor_performance, REQUEST_COUNT, REQUEST_LATENCY
 
 import os
 import json
@@ -27,6 +30,10 @@ except ImportError:
     from app.api.routes.phylo_routes import router as phylo_router
     from app.api.routes.orthologue_routes import router as orthologue_router
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Create FastAPI app
 app = FastAPI(
     title="OrthoViewer API",
@@ -46,6 +53,33 @@ app.add_middleware(
 # Include routers
 app.include_router(phylo_router)
 app.include_router(orthologue_router)
+
+# Start Prometheus metrics server
+@app.on_event("startup")
+async def startup_event():
+    start_metrics_server()
+    logger.info("Application startup complete")
+
+# Performance monitoring middleware
+@app.middleware("http")
+async def add_performance_metrics(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    
+    # Record request metrics
+    duration = time.time() - start_time
+    endpoint = f"{request.method} {request.url.path}"
+    REQUEST_COUNT.labels(endpoint=endpoint).inc()
+    REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
+    
+    # Log slow requests
+    duration_ms = duration * 1000
+    if duration_ms > 50:  # 50ms threshold
+        logger.warning(
+            f"Slow request detected: {endpoint} took {duration_ms:.2f}ms"
+        )
+    
+    return response
 
 # Helper function to load mock data
 def load_mock_data(filename: str) -> Dict[str, Any]:

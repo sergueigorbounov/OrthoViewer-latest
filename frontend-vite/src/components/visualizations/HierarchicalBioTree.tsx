@@ -28,7 +28,7 @@ interface HierarchicalBioTreeProps {
 }
 
 const HierarchicalBioTree: React.FC<HierarchicalBioTreeProps> = ({ 
-  initialData,
+  initialData, 
   onNodeSelect 
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
