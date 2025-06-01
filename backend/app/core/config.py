@@ -3,13 +3,13 @@ from typing import Optional, Dict, List, Union, Any
 from functools import lru_cache
 import os
 
-
 class Settings(BaseSettings):
     """Application settings
     
     This class manages all configuration for the application, using environment variables
     with sensible defaults.
     """
+    
     # API Settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "BioSemanticViz API"
@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     
     # Data paths
     DATA_DIR: str = os.getenv("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
+    
+    # Add the missing BASE_DATA_DIR field (aliased to DATA_DIR for compatibility)
+    BASE_DATA_DIR: str = os.getenv("BASE_DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
+    
     ORTHOGROUPS_FILE: str = os.path.join(DATA_DIR, "orthofinder", "Orthogroups_clean_121124.txt")
     SPECIES_MAPPING_FILE: str = os.path.join(DATA_DIR, "orthofinder", "Table_S1_Metadata_angiosperm_species.csv")
     TREE_FILE: str = os.path.join(DATA_DIR, "orthofinder", "SpeciesTree_nameSp_completeGenome110124.tree")
@@ -56,7 +60,7 @@ class Settings(BaseSettings):
         case_sensitive = True
         env_file = ".env"
         env_file_encoding = "utf-8"
-
+        extra = "allow"  # 🔥 This allows extra env vars without breaking!
 
 @lru_cache()
 def get_settings() -> Settings:

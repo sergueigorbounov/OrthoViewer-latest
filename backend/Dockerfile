@@ -1,28 +1,26 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+# Use conda-forge/mambaforge:latest image
+FROM condaforge/mambaforge:latest
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Copy environment file
+COPY ../environment.yml .
 
-# Copy requirements file
-COPY requirements.txt .
+# Create conda environment
+RUN mamba env create -f environment.yml
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Make RUN commands use the new environment
+SHELL ["conda", "run", "-n", "orthoviewer", "/bin/bash", "-c"]
 
 # Copy application code
 COPY . .
 
-# Set Python path
-ENV PYTHONPATH=/app
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
 
 # Expose port
-EXPOSE 8003
+EXPOSE 8000
 
-# Start the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8003"]
+# Run the application
+CMD ["conda", "run", "--no-capture-output", "-n", "orthoviewer", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

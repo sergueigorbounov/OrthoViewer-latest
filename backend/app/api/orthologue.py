@@ -14,6 +14,7 @@ from ..utils.species_utils import get_species_full_name
 from .search_patch import search_orthologues_patched
 from .gene_finder import build_gene_to_orthogroup_map, find_gene_orthogroup as find_gene_in_orthogroup_lookup
 from app.data_access.orthogroups_repository import OrthogroupsRepository
+from ..core.monitoring import monitor_performance, track_memory_usage
 
 # ETE3 imports
 try:
@@ -538,6 +539,8 @@ def find_gene_orthogroup(gene_id: str, gene_map: dict, df: pd.DataFrame) -> Opti
 # =============================================================================
 
 @router.post("/search", response_model=OrthologueSearchResponse)
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def search_orthologues(request: OrthologueSearchRequest):
     """Rechercher les orthologues d'un gène donné"""
     gene_id = request.gene_id.strip()
@@ -606,6 +609,8 @@ async def search_orthologues(request: OrthologueSearchRequest):
         )
 
 @router.post("/ete-search", response_model=ETESearchResponse)
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def ete_tree_search(request: ETESearchRequest):
     """Advanced tree-based search using ETE toolkit"""
     if not ETE_AVAILABLE:
@@ -672,6 +677,8 @@ async def ete_tree_search(request: ETESearchRequest):
         )
 
 @router.get("/tree", response_model=Dict[str, Any])
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def get_orthologue_tree():
     """Obtenir l'arbre phylogénétique des espèces au format Newick"""
     try:
@@ -687,6 +694,8 @@ async def get_orthologue_tree():
         }
 
 @router.get("/ete-status")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def get_ete_status():
     """Check ETE3 toolkit availability and status"""
     try:
@@ -718,6 +727,8 @@ async def get_ete_status():
 
 # Debug endpoint to check species mapping (remove after testing)
 @router.get("/debug/species-mapping")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def debug_species_mapping_endpoint():
     """Debug endpoint to check species mapping issues"""
     try:
@@ -767,18 +778,88 @@ async def debug_species_mapping_endpoint():
         }
 
 @router.get("/orthogroups")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
 async def get_orthogroups(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(100, ge=1, le=1000, description="Items per page")
 ):
     """Get orthogroups data with pagination"""
     try:
+        # Use caching for frequently accessed pages
+        cache_key = f"orthogroups_page_{page}_{per_page}"
+        
+        # Try to get from cache first
+        from app.core.cache import get_cache, set_cache
+        cached_data = await get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        # If not in cache, load from repository
         data, pagination = repo.load_orthogroups_data(page=page, per_page=per_page)
         
-        return {
+        response = {
             "success": True,
             "data": data.to_dict(orient='records'),
             "pagination": pagination
         }
+        
+        # Cache the response for future requests
+        await set_cache(cache_key, response, expire=300)  # Cache for 5 minutes
+        
+        return response
     except Exception as e:
+        logger.error(f"Failed to get orthogroups: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/genes/{gene_id}")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def get_gene_info(gene_id: str):
+    """Get information about a specific gene"""
+    try:
+        repo = OrthogroupsRepository()
+        gene_info = await repo.get_gene_info(gene_id)
+        if not gene_info:
+            raise HTTPException(status_code=404, detail=f"Gene {gene_id} not found")
+        return gene_info
+    except Exception as e:
+        logger.error(f"Error fetching gene info for {gene_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/orthogroups/{orthogroup_id}")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def get_orthogroup_info(orthogroup_id: str):
+    """Get information about a specific orthogroup"""
+    try:
+        repo = OrthogroupsRepository()
+        orthogroup_info = await repo.get_orthogroup_info(orthogroup_id)
+        if not orthogroup_info:
+            raise HTTPException(status_code=404, detail=f"Orthogroup {orthogroup_id} not found")
+        return orthogroup_info
+    except Exception as e:
+        logger.error(f"Error fetching orthogroup info for {orthogroup_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search/genes")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def search_genes(
+    query: str = Query(..., description="Search query for gene names or IDs"),
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0)
+):
+    """Search for genes by name or ID"""
+    try:
+        repo = OrthogroupsRepository()
+        results = await repo.search_genes(query, limit, offset)
+        return {
+            "results": results,
+            "total": len(results),
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        logger.error(f"Error searching genes with query {query}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

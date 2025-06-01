@@ -1,9 +1,34 @@
-
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { Box, Typography, CircularProgress, Alert, FormControl, FormControlLabel, Switch, Tabs, Tab } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, FormControlLabel, Switch, Tabs, Tab } from '@mui/material';
 import type { SpeciesCountData } from '../../api/orthologueApi';
-// Static import instead of dynamic import
 import * as Phylocanvas from '@phylocanvas/phylocanvas.gl';
+
+// Enhanced interfaces with better type definitions
+interface TreeNode {
+  id: string;
+  name: string;
+  length?: number;
+  depth?: number;
+  children?: TreeNode[];
+  count?: number;
+}
+
+interface ExtendedTreeNode extends TreeNode {
+  polar?: {
+    angle: number;
+    radius: number;
+  };
+  textRotation?: number;
+  textAnchor?: 'start' | 'middle' | 'end';
+}
+
+// D3 specific type definitions
+type D3TreeNode = d3.HierarchyNode<ExtendedTreeNode>;
+type D3TreeLink = d3.HierarchyLink<ExtendedTreeNode>;
+type D3Selection = d3.Selection<SVGGElement, unknown, null, undefined>;
+type D3TreeSelection = d3.Selection<SVGGElement, D3TreeNode, SVGGElement, unknown>;
+type D3LinkSelection = d3.Selection<SVGPathElement, D3TreeLink, SVGGElement, unknown>;
 
 interface PhylogeneticTreeViewProps {
   newickData: string;
@@ -11,17 +36,6 @@ interface PhylogeneticTreeViewProps {
   selectedSpecies?: string | null;
   onSpeciesSelected?: (speciesName: string | null) => void;
   onTreeDataLoad?: (loaded: boolean) => void;
-}
-
-interface TreeNode {
-  id: string;
-  name: string;
-  length?: number;
-  children?: TreeNode[];
-  x?: number;
-  y?: number;
-  count?: number;
-  depth?: number;
 }
 
 const PhylogeneticTreeView: React.FC<PhylogeneticTreeViewProps> = ({ 
@@ -178,10 +192,11 @@ const D3TreeImplementation: React.FC<{
   useRadialLayout: boolean;
 }> = ({ newickData, speciesCounts, selectedSpecies, onSpeciesSelected, onTreeDataLoad, useRadialLayout }) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [treeData, setTreeData] = useState<TreeNode | null>(null);
+  const [treeData, setTreeData] = useState<ExtendedTreeNode | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [leafCount, setLeafCount] = useState(0);
 
   // Helper function to check if two species names match
   const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
@@ -190,29 +205,21 @@ const D3TreeImplementation: React.FC<{
     const normalized1 = name1.toLowerCase().trim();
     const normalized2 = name2.toLowerCase().trim();
     
-    // Direct match
     if (normalized1 === normalized2) return true;
-    
-    // Check if one contains the other
     if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
     
-    // Try genus matching
     const genus1 = normalized1.split(/[\s_]/)[0];
     const genus2 = normalized2.split(/[\s_]/)[0];
     
-    if (genus1 === genus2 && genus1.length > 2) {
-      return true;
-    }
-    
-    return false;
+    return genus1 === genus2 && genus1.length > 2;
   }, []);
 
-  // Function to get path from node to root
-  const getPathToRoot = useCallback((node: d3.HierarchyNode<TreeNode> | null): string[] => {
+  // Get the path from a node to the root
+  const getPathToRoot = useCallback((node: D3TreeNode | null): string[] => {
     if (!node) return [];
     
     const path: string[] = [];
-    let current: d3.HierarchyNode<TreeNode> | null = node;
+    let current: D3TreeNode | null = node;
     
     while (current) {
       path.push(current.data.id);
@@ -222,218 +229,21 @@ const D3TreeImplementation: React.FC<{
     return path;
   }, []);
 
-  // Handle selected species from parent component
-  useEffect(() => {
-    if (!treeData || selectedSpecies === undefined) return;
-
-    if (selectedSpecies) {
-      const allNodes: TreeNode[] = [];
-      const collectAllNodes = (node: TreeNode) => {
-        allNodes.push(node);
-        if (node.children) {
-          node.children.forEach(collectAllNodes);
-        }
-      };
-      collectAllNodes(treeData);
-      
-      const findNodeBySpeciesName = (searchTerm: string): string | null => {
-        for (const node of allNodes) {
-          const cleanNodeName = node.name.replace(/^['"]|['"]$/g, '');
-          
-          if (doSpeciesNamesMatch(cleanNodeName, searchTerm)) {
-            return node.id;
-          }
-        }
-        
-        const matchingSpecies = speciesCounts.find(sc => 
-          doSpeciesNamesMatch(sc.species_name, searchTerm) || 
-          doSpeciesNamesMatch(sc.species_id, searchTerm)
-        );
-        
-        if (matchingSpecies) {
-          for (const node of allNodes) {
-            if (doSpeciesNamesMatch(node.name, matchingSpecies.species_name) || 
-                doSpeciesNamesMatch(node.name, matchingSpecies.species_id)) {
-              return node.id;
-            }
-          }
-        }
-        
-        const genusMatch = searchTerm.split(/[\s_]/)[0];
-        if (genusMatch && genusMatch.length > 2) {
-          for (const node of allNodes) {
-            if (node.name.toLowerCase().startsWith(genusMatch.toLowerCase())) {
-              return node.id;
-            }
-          }
-        }
-        
-        return null;
-      };
-      
-      const foundNodeId = findNodeBySpeciesName(selectedSpecies);
-      if (foundNodeId) {
-        setSelectedNodeId(foundNodeId);
-      }
-    } else if (selectedSpecies === null) {
-      setSelectedNodeId(null);
+  // Calculate distance from root based on branch lengths
+  const calculateDistanceFromRoot = useCallback((node: D3TreeNode): number => {
+    let distance = 0;
+    let current: D3TreeNode | null = node;
+    
+    while (current && current.parent) {
+      // Use actual branch length if available, else default value
+      distance += current.data.length || 0.1;
+      current = current.parent;
     }
-  }, [selectedSpecies, treeData, doSpeciesNamesMatch, speciesCounts]);
+    
+    return distance;
+  }, []);
 
-  // Parse Newick string to tree hierarchy
-  useEffect(() => {
-    if (!newickData) {
-      setError('No tree data provided');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const parseNewick = (newickString: string): TreeNode => {
-        const cleaned = newickString.trim().replace(/;$/, '');
-        
-        const parseSubtree = (str: string, id = 'root', depth = 0): TreeNode => {
-          if (!str.includes('(')) {
-            const [name, lengthStr] = str.split(':');
-            return {
-              id: name.trim() || id,
-              name: name.trim() || id,
-              length: lengthStr ? parseFloat(lengthStr) : undefined,
-              depth: depth
-            };
-          }
-          
-          let openCount = 0;
-          let childrenStr = '';
-          let nameAndLength = '';
-          let foundOpeningParen = false;
-          
-          for (let i = 0; i < str.length; i++) {
-            const char = str[i];
-            
-            if (char === '(') {
-              if (foundOpeningParen) {
-                childrenStr += char;
-              } else {
-                foundOpeningParen = true;
-              }
-              openCount++;
-            } else if (char === ')') {
-              openCount--;
-              if (openCount === 0) {
-                nameAndLength = str.substring(i + 1);
-                break;
-              } else {
-                childrenStr += char;
-              }
-            } else if (foundOpeningParen) {
-              childrenStr += char;
-            }
-          }
-          
-          const childStrings: string[] = [];
-          let currentChild = '';
-          openCount = 0;
-          
-          for (let i = 0; i < childrenStr.length; i++) {
-            const char = childrenStr[i];
-            
-            if (char === '(') {
-              openCount++;
-              currentChild += char;
-            } else if (char === ')') {
-              openCount--;
-              currentChild += char;
-            } else if (char === ',' && openCount === 0) {
-              childStrings.push(currentChild);
-              currentChild = '';
-            } else {
-              currentChild += char;
-            }
-          }
-          
-          if (currentChild) {
-            childStrings.push(currentChild);
-          }
-          
-          const [name, lengthStr] = nameAndLength.split(':');
-          
-          const node: TreeNode = {
-            id: name.trim() || id,
-            name: name.trim() || id,
-            length: lengthStr ? parseFloat(lengthStr) : undefined,
-            depth: depth,
-            children: childStrings.map((childStr, i) => parseSubtree(childStr, `${id}_${i}`, depth + 1))
-          };
-          
-          return node;
-        };
-        
-        return parseSubtree(cleaned);
-      };
-
-      const parsedTree = parseNewick(newickData);
-      
-      const addCountsToTree = (node: TreeNode): void => {
-        if (!node.children || node.children.length === 0) {
-          const matchByName = speciesCounts.find(
-            s => doSpeciesNamesMatch(s.species_name, node.name) || doSpeciesNamesMatch(s.species_id, node.name)
-          );
-          
-          if (matchByName) {
-            node.count = matchByName.count;
-            return;
-          }
-        } else {
-          let totalCount = 0;
-          if (node.children) {
-            node.children.forEach(child => {
-              addCountsToTree(child);
-              totalCount += child.count || 0;
-            });
-          }
-          if (totalCount > 0) {
-            node.count = totalCount;
-          }
-        }
-      };
-      
-      addCountsToTree(parsedTree);
-      setTreeData(parsedTree);
-      
-      if (selectedSpecies) {
-        const findNodeBySpeciesName = (node: TreeNode): TreeNode | null => {
-          if (doSpeciesNamesMatch(node.name, selectedSpecies)) {
-            return node;
-          }
-          
-          if (node.children) {
-            for (const child of node.children) {
-              const found = findNodeBySpeciesName(child);
-              if (found) return found;
-            }
-          }
-          
-          return null;
-        };
-        
-        const foundNode = findNodeBySpeciesName(parsedTree);
-        if (foundNode) {
-          setSelectedNodeId(foundNode.id);
-        }
-      }
-    } catch (err) {
-      console.error('Error parsing Newick data:', err);
-      setError('Failed to parse tree data');
-    } finally {
-      setLoading(false);
-    }
-  }, [newickData, speciesCounts, selectedSpecies, doSpeciesNamesMatch]);
-
-  // Render tree function
+  // Render tree with enhanced visuals
   const renderTree = useCallback(() => {
     if (!svgRef.current || !treeData) return;
 
@@ -443,6 +253,40 @@ const D3TreeImplementation: React.FC<{
     const width = svgRef.current.clientWidth || 800;
     const height = svgRef.current.clientHeight || 600;
     
+    // Add gradient and filter definitions
+    const defs = svg.append('defs');
+
+    // Node gradient
+    const nodeGradient = defs.append('radialGradient')
+      .attr('id', 'node-gradient')
+      .attr('cx', '30%')
+      .attr('cy', '30%')
+      .attr('r', '70%');
+
+    nodeGradient.append('stop')
+      .attr('offset', '0%')
+      .attr('style', 'stop-color:rgb(124,252,0);stop-opacity:1');
+
+    nodeGradient.append('stop')
+      .attr('offset', '100%')
+      .attr('style', 'stop-color:rgb(34,139,34);stop-opacity:1');
+
+    // Glow effect for highlighting
+    const glow = defs.append('filter')
+      .attr('id', 'glow')
+      .attr('x', '-50%')
+      .attr('y', '-50%')
+      .attr('width', '200%')
+      .attr('height', '200%');
+
+    glow.append('feGaussianBlur')
+      .attr('stdDeviation', '2')
+      .attr('result', 'coloredBlur');
+
+    const glowMerge = glow.append('feMerge');
+    glowMerge.append('feMergeNode').attr('in', 'coloredBlur');
+    glowMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
     const container = svg
       .attr('width', width)
       .attr('height', height)
@@ -461,44 +305,54 @@ const D3TreeImplementation: React.FC<{
     if (useRadialLayout) {
       g.attr('transform', `translate(${width / 2}, ${height / 2})`);
     } else {
-      g.attr('transform', `translate(${width * 0.08}, ${height / 2})`);
+      const leftMargin = Math.max(width * 0.05, Math.min(width * 0.15, 20 + Math.log(leafCount) * 15));
+      g.attr('transform', `translate(${leftMargin}, ${height / 2})`);
     }
 
-    const root = d3.hierarchy(treeData) as d3.HierarchyNode<TreeNode>;
+    const root = d3.hierarchy(treeData) as D3TreeNode;
 
     if (useRadialLayout) {
-      const radius = Math.min(width, height) * 0.4;
+      const radius = Math.min(width, height) * 0.42;
       
-      const treeLayout = d3.cluster<TreeNode>()
+      const treeLayout = d3.cluster<ExtendedTreeNode>()
         .size([2 * Math.PI, radius])
         .separation((a, b) => {
           const isLeafA = !a.children || a.children.length === 0;
           const isLeafB = !b.children || b.children.length === 0;
           
+          const depthFactor = Math.max(1, 3 - Math.min(a.depth || 0, b.depth || 0) * 0.5);
+          const neighborCount = isLeafA && isLeafB ? 
+            Math.max(a.parent?.children?.length || 1, b.parent?.children?.length || 1) : 1;
+          const densityFactor = 1 + Math.log(neighborCount) * 0.2;
+          
           if (isLeafA && isLeafB) {
-            return 2.5;
+            return 2.5 * depthFactor * densityFactor;
           } else if (isLeafA || isLeafB) {
-            return 2.0;
-          } else {
-            return 1.5;
+            return 2.0 * depthFactor;
           }
+          return 1.5 * depthFactor;
         });
-        
+      
       treeLayout(root);
       
-      const maxRadius = radius;
-      root.each(d => {
-        (d as any).polar = { angle: d.x, radius: d.y };
-        
-        if (!d.children || d.children.length === 0) {
-          d.y = maxRadius;
+      // Store polar coordinates for smooth transitions
+      root.each(node => {
+        if (node.x !== undefined) {
+          const angle = (node.x - Math.PI / 2) / Math.PI * 180;
+          node.data.textRotation = angle > 90 && angle < 270 ? angle + 180 : angle;
+          node.data.textAnchor = angle > 90 && angle < 270 ? 'end' : 'start';
+          node.data.polar = {
+            angle: node.x,
+            radius: node.y || 0
+          };
         }
       });
+
     } else {
       const treeHeight = height * 2.5;
       const treeWidth = width * 0.75;
       
-      const treeLayout = d3.tree<TreeNode>()
+      const treeLayout = d3.tree<ExtendedTreeNode>()
         .size([treeHeight, treeWidth])
         .separation((a, b) => {
           const isLeafA = !a.children || a.children.length === 0;
@@ -508,45 +362,17 @@ const D3TreeImplementation: React.FC<{
             return 3.5;
           } else if (isLeafA || isLeafB) {
             return 2.5;
-          } else {
-            return 1.5;
           }
+          return 1.5;
         });
       
       treeLayout(root);
-
-      const minimizeCrossings = (node: d3.HierarchyNode<TreeNode>) => {
-        if (!node.children || node.children.length === 0) return;
-        
-        node.children.sort((a, b) => (a.x || 0) - (b.x || 0));
-        
-        node.children.forEach(child => minimizeCrossings(child));
-      };
-      
-      minimizeCrossings(root);
-      treeLayout(root);
-      root.each(d => {
-        if (d.x !== undefined) {
-          d.x -= treeHeight / 3;
-        }
-      });
-      
-      const maxDepth = treeWidth;
-      root.each(d => {
-        if (!d.children || d.children.length === 0) {
-          d.y = maxDepth;
-        }
-      });
     }
-
-    const nodeScale = d3.scaleLinear()
-      .domain([0, d3.max(speciesCounts, d => d.count) || 1])
-      .range([3, 10]);
 
     const getHighlightedPathToRoot = (nodeId: string | null): string[] => {
       if (!nodeId) return [];
       
-      const findNode = (node: d3.HierarchyNode<TreeNode>, id: string): d3.HierarchyNode<TreeNode> | null => {
+      const findNode = (node: D3TreeNode, id: string): D3TreeNode | null => {
         if (node.data.id === id) return node;
         if (node.children) {
           for (const child of node.children) {
@@ -563,27 +389,39 @@ const D3TreeImplementation: React.FC<{
     
     const highlightedPath = getHighlightedPathToRoot(selectedNodeId);
 
+    // Enhanced node scale based on count values
+    const nodeScale = d3.scaleLinear()
+      .domain([0, d3.max(speciesCounts, d => d.count) || 1])
+      .range(leafCount > 100 ? [3, 8] : [4, 12]);
+
+    // Color scale for count-based intensity
+    const colorIntensityScale = d3.scaleLinear()
+      .domain([0, d3.max(speciesCounts, d => d.count) || 1])
+      .range([0.3, 1.0]);
+
     const links = g.append('g').attr('class', 'links');
-      
+    
     if (useRadialLayout) {
       links.selectAll('.link')
         .data(root.links())
         .enter()
         .append('path')
         .attr('class', 'link')
-        .attr('d', (d: any) => {
-          const sourceAngle = d.source.x;
-          const sourceRadius = d.source.y;
-          const targetAngle = d.target.x;
-          const targetRadius = d.target.y;
+        .attr('d', (d: D3TreeLink) => {
+          const sourceAngle = d.source.data.polar?.angle || 0;
+          const sourceRadius = d.source.data.polar?.radius || 0;
+          const targetAngle = d.target.data.polar?.angle || 0;
+          const targetRadius = d.target.data.polar?.radius || 0;
           
           const sourceX = sourceRadius * Math.sin(sourceAngle);
           const sourceY = -sourceRadius * Math.cos(sourceAngle);
           const targetX = targetRadius * Math.sin(targetAngle);
           const targetY = -targetRadius * Math.cos(targetAngle);
           
-          const midX = targetRadius * Math.sin(sourceAngle);
-          const midY = -targetRadius * Math.cos(sourceAngle);
+          const midRadius = targetRadius;
+          const midAngle = sourceAngle;
+          const midX = midRadius * Math.sin(midAngle);
+          const midY = -midRadius * Math.cos(midAngle);
           
           if (Math.abs(sourceAngle - targetAngle) < 0.1) {
             return `M${sourceX},${sourceY} L${targetX},${targetY}`;
@@ -597,17 +435,17 @@ const D3TreeImplementation: React.FC<{
                   ${targetX},${targetY}`;
         })
         .attr('fill', 'none')
-        .attr('stroke', (d: any) => {
+        .attr('stroke', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? '#1976d2' : '#ccc';
         })
-        .attr('stroke-width', (d: any) => {
+        .attr('stroke-width', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? 3 : 1;
         })
-        .attr('stroke-opacity', (d: any) => {
+        .attr('stroke-opacity', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? 1 : 0.6;
@@ -618,29 +456,30 @@ const D3TreeImplementation: React.FC<{
         .enter()
         .append('path')
         .attr('class', 'link')
-        .attr('d', (d: any) => {
-          return `M${d.source.y},${d.source.x}
-                  L${d.source.y},${d.target.x}
-                  L${d.target.y},${d.target.x}`;
+        .attr('d', (d: D3TreeLink) => {
+          return `M${d.source.y},${d.source.x || 0}
+                  L${d.source.y},${d.target.x || 0}
+                  L${d.target.y},${d.target.x || 0}`;
         })
         .attr('fill', 'none')
-        .attr('stroke', (d: any) => {
+        .attr('stroke', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? '#1976d2' : '#ccc';
         })
-        .attr('stroke-width', (d: any) => {
+        .attr('stroke-width', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? 3 : 1;
         })
-        .attr('stroke-opacity', (d: any) => {
+        .attr('stroke-opacity', (d: D3TreeLink) => {
           const isHighlighted = highlightedPath.includes(d.source.data.id) && 
                              highlightedPath.includes(d.target.data.id);
           return isHighlighted ? 1 : 0.6;
         });
     }
 
+    // Add nodes with enhanced visuals
     const nodes = g.append('g')
       .attr('class', 'nodes')
       .selectAll('.node')
@@ -648,20 +487,19 @@ const D3TreeImplementation: React.FC<{
       .enter()
       .append('g')
       .attr('class', 'node')
-      .attr('transform', (d: any) => {
+      .attr('transform', (d: D3TreeNode) => {
         if (useRadialLayout) {
-          const x = d.y * Math.sin(d.x);
-          const y = -d.y * Math.cos(d.x);
+          const x = (d.y || 0) * Math.sin(d.x || 0);
+          const y = -(d.y || 0) * Math.cos(d.x || 0);
           return `translate(${x},${y})`;
-        } else {
-          return `translate(${d.y},${d.x})`;
         }
+        return `translate(${d.y},${d.x || 0})`;
       })
-      .style('cursor', 'pointer')
-      .style('opacity', 1);
+      .style('cursor', 'pointer');
 
+    // Add node circles with gradients and effects
     nodes.append('circle')
-      .attr('r', (d: any) => {
+      .attr('r', (d: D3TreeNode) => {
         const isLeaf = !d.children || d.children.length === 0;
         if (d.data.id === selectedNodeId) {
           return (isLeaf && d.data.count) ? nodeScale(d.data.count) * 1.5 : 8;
@@ -669,170 +507,111 @@ const D3TreeImplementation: React.FC<{
         if (highlightedPath.includes(d.data.id)) {
           return (isLeaf && d.data.count) ? nodeScale(d.data.count) * 1.2 : 5;
         }
-        if (isLeaf && d.data.count) {
-          return nodeScale(d.data.count);
-        }
-        return isLeaf ? 4 : 2;
+        return isLeaf && d.data.count ? nodeScale(d.data.count) : 3;
       })
-      .attr('fill', (d: any) => {
+      .attr('fill', (d: D3TreeNode) => {
         if (d.data.id === selectedNodeId) {
-          return '#1976d2';
-        } else if (highlightedPath.includes(d.data.id)) {
+          return 'url(#node-gradient)';
+        }
+        if (highlightedPath.includes(d.data.id)) {
           return '#42a5f5';
-        } else if (d.data.count && d.data.count > 0) {
-          return '#4caf50';
+        }
+        if (d.data.count && d.data.count > 0) {
+          const intensity = colorIntensityScale(d.data.count);
+          return d3.interpolateRgb('#90caf9', '#1565c0')(intensity);
         }
         return '#9e9e9e';
       })
-      .attr('stroke', (d: any) => {
+      .attr('stroke', (d: D3TreeNode) => {
         if (d.data.id === selectedNodeId) {
           return '#0d47a1';
-        } else if (highlightedPath.includes(d.data.id)) {
+        }
+        if (highlightedPath.includes(d.data.id)) {
           return '#1976d2';
         }
-        return d.data.count && d.data.count > 0 ? '#2e7d32' : '#616161';
+        return '#757575';
       })
-      .attr('stroke-width', (d: any) => {
-        if (d.data.id === selectedNodeId) return 3;
-        if (highlightedPath.includes(d.data.id)) return 2;
+      .attr('stroke-width', (d: D3TreeNode) => {
+        if (d.data.id === selectedNodeId) return 2;
+        if (highlightedPath.includes(d.data.id)) return 1.5;
         return 1;
+      })
+      .attr('filter', (d: D3TreeNode) => {
+        return d.data.id === selectedNodeId ? 'url(#glow)' : 'none';
       });
 
+    // Add node labels with improved positioning
     nodes.append('text')
       .attr('dy', '.31em')
-      .attr('x', (d: any) => {
+      .attr('x', (d: D3TreeNode) => {
         if (useRadialLayout) {
-          const angle = d.x;
-          return angle > Math.PI / 2 && angle < Math.PI * 3 / 2 ? -20 : 20; 
-        } else {
-          const isLeaf = !d.children || d.children.length === 0;
-          if (isLeaf) {
-            return 20;
-          } else {
-            return -20;
-          }
+          return d.data.textAnchor === 'end' ? -12 : 12;
         }
+        const isLeaf = !d.children || d.children.length === 0;
+        return isLeaf ? 8 : -8;
       })
-      .attr('text-anchor', (d: any) => {
+      .attr('text-anchor', (d: D3TreeNode) => {
         if (useRadialLayout) {
-          const angle = d.x;
-          return angle > Math.PI / 2 && angle < Math.PI * 3 / 2 ? 'end' : 'start';
-        } else {
-          const isLeaf = !d.children || d.children.length === 0;
-          if (isLeaf) {
-            return 'start';
-          } else {
-            return 'end';
-          }
+          return d.data.textAnchor || 'start';
         }
+        const isLeaf = !d.children || d.children.length === 0;
+        return isLeaf ? 'start' : 'end';
       })
-      .attr('transform', (d: any) => {
-        if (useRadialLayout) {
-          const angle = d.x * 180 / Math.PI;
-          const rotation = angle > 90 && angle < 270 ? angle + 180 : angle;
-          return `rotate(${rotation - 90})`;
+      .attr('transform', (d: D3TreeNode) => {
+        if (useRadialLayout && d.data.textRotation !== undefined) {
+          return `rotate(${d.data.textRotation})`;
         }
         return null;
       })
-      .text((d: any) => {
+      .text((d: D3TreeNode) => {
         const isLeaf = !d.children || d.children.length === 0;
-        
         if (isLeaf || d.data.id === selectedNodeId || highlightedPath.includes(d.data.id)) {
-          const name = d.data.name;
-          const cleanName = name.replace(/^['"]|['"]$/g, '');
-          
-          let displayName = cleanName.length > 16 ? cleanName.substring(0, 14) + '...' : cleanName;
-          
+          let displayName = d.data.name.replace(/^['"]|['"]$/g, '');
           if (d.data.count && d.data.count > 0) {
             displayName = `${displayName} (${d.data.count})`;
-          } else if (d.data.id === selectedNodeId && selectedSpecies) {
-            const matchCount = speciesCounts.find(s => 
-              doSpeciesNamesMatch(s.species_name, selectedSpecies) ||
-              doSpeciesNamesMatch(s.species_id, selectedSpecies)
-            );
-            
-            if (matchCount && matchCount.count > 0) {
-              displayName = `${displayName} (${matchCount.count})`;
-            }
           }
-          
           return displayName;
         }
-        
         return '';
       })
-      .attr('fill', (d: any) => {
-        if (d.data.id === selectedNodeId) {
-          return '#1976d2';
-        } else if (highlightedPath.includes(d.data.id)) {
+      .attr('fill', (d: D3TreeNode) => {
+        if (d.data.id === selectedNodeId || highlightedPath.includes(d.data.id)) {
           return '#1976d2';
         }
         return '#333';
       })
-      .attr('font-weight', (d: any) => {
-        return d.data.id === selectedNodeId || highlightedPath.includes(d.data.id)
-          ? 'bold'
-          : 'normal';
+      .attr('font-weight', (d: D3TreeNode) => {
+        return d.data.id === selectedNodeId || highlightedPath.includes(d.data.id) ? 
+          'bold' : 'normal';
       })
-      .attr('font-size', (d: any) => {
+      .attr('font-size', (d: D3TreeNode) => {
         return d.data.id === selectedNodeId ? '13px' : '12px';
-      })
-      .attr('paint-order', 'stroke')
-      .attr('stroke', (d: any) => {
-        return highlightedPath.includes(d.data.id) ? 'rgba(255,255,255,0.7)' : 'none';
-      })
-      .attr('stroke-width', (d: any) => {
-        return highlightedPath.includes(d.data.id) ? '2px' : '0';
       });
 
-    nodes.append('title')
-      .text((d: any) => {
-        const count = d.data.count || 0;
-        return `${d.data.name} (${count} orthologue${count !== 1 ? 's' : ''})`;
-      });
-      
-    nodes.on('click', (event, d) => {
+    // Add interactive behaviors
+    nodes.on('click', (event: MouseEvent, d: D3TreeNode) => {
       event.stopPropagation();
-      
       const newSelectedId = d.data.id === selectedNodeId ? null : d.data.id;
-      
-      setSelectedNodeId(prev => {
-        if (prev === newSelectedId) {
-          return null;
-        }
-        return newSelectedId;
-      });
+      setSelectedNodeId(newSelectedId);
       
       if (onSpeciesSelected) {
-        const speciesName = newSelectedId === null ? null : d.data.name;
-        onSpeciesSelected(speciesName);
+        onSpeciesSelected(newSelectedId === null ? null : d.data.name);
       }
     });
 
-    svg.on('click', (event: MouseEvent) => {
-      if (event.target === svg.node()) {
-        setSelectedNodeId(null);
-        if (onSpeciesSelected) {
-          onSpeciesSelected(null);
-        }
+    svg.on('click', () => {
+      setSelectedNodeId(null);
+      if (onSpeciesSelected) {
+        onSpeciesSelected(null);
       }
     });
-    
-    svg.on('dblclick', () => {
-      svg.transition()
-        .duration(750)
-        .call(zoom.transform, d3.zoomIdentity);
-    });
-    
-    if (onTreeDataLoad) {
-      onTreeDataLoad(true);
-    }
 
+    // Add animation for highlighted paths
     if (selectedNodeId) {
-      nodes.filter((d: any) => d.data.id === selectedNodeId)
+      nodes.filter((d: D3TreeNode) => d.data.id === selectedNodeId)
         .append('circle')
         .attr('class', 'selection-outer-ring')
-        .attr('r', (d: any) => {
+        .attr('r', (d: D3TreeNode) => {
           const isLeaf = !d.children || d.children.length === 0;
           if (isLeaf && d.data.count) {
             return nodeScale(d.data.count) * 2;
@@ -844,19 +623,150 @@ const D3TreeImplementation: React.FC<{
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '4,2')
         .attr('opacity', 0.8);
-      
-      nodes.filter((d: any) => d.data.id === selectedNodeId)
-        .append('circle')
-        .attr('class', 'selection-center-marker')
-        .attr('r', 3)
-        .attr('fill', '#1976d2')
-        .attr('opacity', 0.9);
     }
-  }, [treeData, svgRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch]);
+
+  }, [treeData, svgRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, 
+      onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch, leafCount]);
 
   useEffect(() => {
     renderTree();
   }, [renderTree]);
+
+  // Process Newick data
+  useEffect(() => {
+    if (!newickData) {
+      setError('No tree data provided');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const parseNewick = (newickString: string): ExtendedTreeNode => {
+        const cleaned = newickString.trim().replace(/;$/, '');
+        
+        const parseSubtree = (str: string, id = 'root', depth = 0): ExtendedTreeNode => {
+          if (!str.includes('(')) {
+            const [name, lengthStr] = str.split(':');
+            return {
+              id: name.trim() || id,
+              name: name.trim() || id,
+              length: lengthStr ? parseFloat(lengthStr) : undefined,
+              depth: depth
+            };
+          }
+          
+          let openCount = 0;
+          let childrenStr = '';
+          let nameAndLength = '';
+          let foundOpeningParen = false;
+          
+          for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            if (char === '(') {
+              foundOpeningParen = true;
+              openCount++;
+            } else if (char === ')') {
+              openCount--;
+              if (openCount === 0 && foundOpeningParen) {
+                nameAndLength = str.slice(i + 1);
+                break;
+              }
+            }
+            if (foundOpeningParen) {
+              childrenStr += char;
+            }
+          }
+          
+          const children = childrenStr
+            .slice(1) // Remove leading '('
+            .split(/,(?![^(]*\))/)
+            .filter(Boolean)
+            .map((childStr, index) => parseSubtree(childStr.trim(), `${id}_${index}`, depth + 1));
+
+          const [name, lengthStr] = nameAndLength.split(':');
+          
+          return {
+            id: name.trim() || id,
+            name: name.trim() || id,
+            length: lengthStr ? parseFloat(lengthStr) : undefined,
+            depth: depth,
+            children: children
+          };
+        };
+
+        const parsedTree = parseSubtree(cleaned);
+        
+        // Count leaves and add IDs
+        let leafId = 0;
+        const countLeaves = (node: ExtendedTreeNode): number => {
+          if (!node.children || node.children.length === 0) {
+            node.id = `leaf_${leafId++}`;
+            return 1;
+          }
+          const count = node.children.reduce((sum, child) => sum + countLeaves(child), 0);
+          node.id = `node_${node.name}_${count}`;
+          return count;
+        };
+        
+        const totalLeaves = countLeaves(parsedTree);
+        setLeafCount(totalLeaves);
+
+        // Add species counts
+        const addCountsToTree = (node: ExtendedTreeNode) => {
+          const nodeName = node.name.replace(/^['"]|['"]$/g, '');
+          const speciesCount = speciesCounts.find(s => 
+            doSpeciesNamesMatch(s.species_name, nodeName) ||
+            doSpeciesNamesMatch(s.species_id, nodeName)
+          );
+          
+          if (speciesCount) {
+            node.count = speciesCount.count;
+          }
+          
+          if (node.children) {
+            node.children.forEach(addCountsToTree);
+          }
+        };
+        
+        addCountsToTree(parsedTree);
+        setTreeData(parsedTree);
+
+        if (selectedSpecies) {
+          const findNodeBySpecies = (node: ExtendedTreeNode): ExtendedTreeNode | null => {
+            if (doSpeciesNamesMatch(node.name, selectedSpecies)) {
+              return node;
+            }
+            
+            if (node.children) {
+              for (const child of node.children) {
+                const found = findNodeBySpecies(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const foundNode = findNodeBySpecies(parsedTree);
+          if (foundNode) {
+            setSelectedNodeId(foundNode.id);
+          }
+        }
+
+        return parsedTree;
+      };
+
+      parseNewick(newickData);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error parsing tree data';
+      console.error('Error parsing Newick data:', errorMessage);
+      setError('Failed to parse tree data');
+    } finally {
+      setLoading(false);
+    }
+  }, [newickData, speciesCounts, selectedSpecies, doSpeciesNamesMatch]);
 
   if (loading) {
     return (
@@ -924,6 +834,33 @@ const D3TreeImplementation: React.FC<{
 };
 
 // Phylocanvas Implementation Component - Modified to use static import
+interface PhylocanvasNode {
+  id: string;
+  label: string;
+  originalLabel?: string;
+  selected: boolean;
+  radius: number;
+}
+
+interface PhylocanvasTree {
+  source: string;
+  type: 'rectangular' | 'radial';
+  canvas: HTMLCanvasElement;
+  destroy(): void;
+  render(): void;
+  getLeafNodes(): PhylocanvasNode[];
+  on(event: 'click' | 'loaded', callback: (event: {node: PhylocanvasNode}) => void): void;
+  on(event: 'error', callback: (error: PhylocanvasError) => void): void;
+}
+
+interface PhylocanvasEvent {
+  node: PhylocanvasNode;
+}
+
+interface PhylocanvasError {
+  message: string;
+}
+
 const PhylocanvasImplementation: React.FC<{
   newickData: string;
   speciesCounts: SpeciesCountData[];
@@ -933,8 +870,8 @@ const PhylocanvasImplementation: React.FC<{
   useRadialLayout: boolean;
 }> = ({ newickData, speciesCounts, selectedSpecies, onSpeciesSelected, onTreeDataLoad, useRadialLayout }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const treeInstanceRef = useRef<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const treeInstanceRef = useRef<PhylocanvasTree | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
@@ -949,14 +886,10 @@ const PhylocanvasImplementation: React.FC<{
     const genus1 = normalized1.split(/[\s_]/)[0];
     const genus2 = normalized2.split(/[\s_]/)[0];
     
-    if (genus1 === genus2 && genus1.length > 2) {
-      return true;
-    }
-    
-    return false;
+    return genus1 === genus2 && genus1.length > 2;
   }, []);
 
-  // Initialize Phylocanvas - Changed to use static import
+  // Initialize Phylocanvas
   useEffect(() => {
     const initializeTree = () => {
       if (!containerRef.current || !newickData) return;
@@ -972,11 +905,7 @@ const PhylocanvasImplementation: React.FC<{
 
         containerRef.current.innerHTML = '';
 
-        // Use static import of Phylocanvas
-        if (!Phylocanvas || !Phylocanvas.createTree) {
-          throw new Error('Phylocanvas is not available');
-        }
-        
+        // Create new tree instance
         const tree = Phylocanvas.createTree(containerRef.current, {
           type: useRadialLayout ? 'radial' : 'rectangular',
           source: newickData,
@@ -997,14 +926,14 @@ const PhylocanvasImplementation: React.FC<{
           selectedFillColour: '#1976d2',
           highlightColour: '#42a5f5',
           padding: 20
-        });
+        }) as PhylocanvasTree;
 
         treeInstanceRef.current = tree;
 
         tree.on('loaded', () => {
           const leaves = tree.getLeafNodes();
-          leaves.forEach((node: any) => {
-            const nodeName = node.label || node.id;
+          leaves.forEach((node: PhylocanvasNode) => {
+            const nodeName = node.originalLabel || node.label;
             const matchingSpecies = speciesCounts.find(s => 
               doSpeciesNamesMatch(s.species_name, nodeName) || 
               doSpeciesNamesMatch(s.species_id, nodeName)
@@ -1024,11 +953,11 @@ const PhylocanvasImplementation: React.FC<{
           setLoading(false);
         });
 
-        tree.on('click', (event: any) => {
-          if (event.node && event.node.isLeaf) {
-            const nodeName = event.node.originalLabel || event.node.label || event.node.id;
+        tree.on('click', (event: PhylocanvasEvent) => {
+          if (event.node) {
+            const nodeName = event.node.originalLabel || event.node.label;
             
-            tree.getLeafNodes().forEach((node: any) => {
+            tree.getLeafNodes().forEach((node: PhylocanvasNode) => {
               node.selected = false;
             });
             
@@ -1041,15 +970,16 @@ const PhylocanvasImplementation: React.FC<{
           }
         });
 
-        tree.on('error', (error: any) => {
+        tree.on('error', (error: PhylocanvasError) => {
           console.error('Phylocanvas error:', error);
           setError('Failed to render phylogenetic tree');
           setLoading(false);
         });
 
-      } catch (err) {
-        console.error('Error initializing Phylocanvas:', err);
-        setError('Phylocanvas library not available. Please install @phylocanvas/phylocanvas.gl');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error initializing Phylocanvas';
+        console.error('Error initializing Phylocanvas:', errorMessage);
+        setError('Phylocanvas library not available');
         setLoading(false);
       }
     };
@@ -1064,7 +994,7 @@ const PhylocanvasImplementation: React.FC<{
     };
   }, [newickData, useRadialLayout, speciesCounts, doSpeciesNamesMatch, onSpeciesSelected, onTreeDataLoad]);
 
-  // Handle species selection from parent component
+  // Handle species selection from parent
   useEffect(() => {
     if (!treeInstanceRef.current || !selectedSpecies) return;
 
@@ -1072,12 +1002,12 @@ const PhylocanvasImplementation: React.FC<{
       const tree = treeInstanceRef.current;
       const leaves = tree.getLeafNodes();
       
-      leaves.forEach((node: any) => {
+      leaves.forEach((node: PhylocanvasNode) => {
         node.selected = false;
       });
       
-      const targetNode = leaves.find((node: any) => {
-        const nodeName = node.originalLabel || node.label || node.id;
+      const targetNode = leaves.find((node: PhylocanvasNode) => {
+        const nodeName = node.originalLabel || node.label;
         return doSpeciesNamesMatch(nodeName, selectedSpecies);
       });
       
@@ -1086,35 +1016,13 @@ const PhylocanvasImplementation: React.FC<{
       }
       
       tree.render();
-    } catch (error) {
-      console.error('Error selecting species in Phylocanvas:', error);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error selecting species';
+      console.error('Error selecting species in Phylocanvas:', errorMessage);
     }
   }, [selectedSpecies, doSpeciesNamesMatch]);
 
-  const renderFallbackMessage = () => (
-    <Box sx={{ p: 3, textAlign: 'center' }}>
-      <Typography variant="h6" gutterBottom>
-        Phylocanvas Not Available
-      </Typography>
-      <Typography variant="body2" color="textSecondary" gutterBottom>
-        To use the advanced phylogenetic tree viewer, please install Phylocanvas:
-      </Typography>
-      <Box sx={{ 
-        bgcolor: 'grey.100', 
-        p: 2, 
-        borderRadius: 1, 
-        fontFamily: 'monospace',
-        fontSize: '0.9em',
-        mt: 2 
-      }}>
-        npm install @phylocanvas/phylocanvas.gl
-      </Box>
-      <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-        The D3 tree implementation is available as an alternative.
-      </Typography>
-    </Box>
-  );
-
+  // Render loading or error state
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100%">
@@ -1127,41 +1035,22 @@ const PhylocanvasImplementation: React.FC<{
   if (error) {
     return (
       <Box p={2}>
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-        {error.includes('Phylocanvas library not available') && renderFallbackMessage()}
+        <Alert severity="error">{error}</Alert>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', position: 'relative' }}>
-      <Box
-        ref={containerRef}
-        sx={{ 
-          width: '100%', 
-          height: '100%',
-          '& canvas': {
-            borderRadius: '4px'
-          }
-        }}
-      />
-      
-      <Typography 
-        variant="caption" 
-        component="div"
-        sx={{ 
-          position: 'absolute', 
-          bottom: 8, 
-          left: 8, 
-          background: 'rgba(255,255,255,0.9)',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          fontSize: '0.75rem'
-        }}
-      >
-        <strong>Phylocanvas:</strong> Click nodes to select, scroll to zoom, drag to pan
-      </Typography>
-    </Box>
+    <Box 
+      ref={containerRef}
+      sx={{ 
+        width: '100%', 
+        height: '100%',
+        '& canvas': {
+          borderRadius: '4px'
+        }
+      }}
+    />
   );
 };
 
