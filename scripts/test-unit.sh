@@ -1,19 +1,24 @@
 #!/bin/bash
 set -e
 
-# Navigate to backend directory
-cd "$(dirname "$0")/../backend"
+# Navigate to project root
+cd "$(dirname "$0")/.."
 
-# Activate environment
-if [ -f "environment.yml" ]; then
+# Activate conda environment if available
+if conda env list | grep -q "orthoviewer2"; then
+    echo "Activating conda environment..."
     source "$(conda info --base)/etc/profile.d/conda.sh"
-    conda activate biosemantic || conda create -n biosemantic python=3.9
-    conda activate biosemantic
+    conda activate orthoviewer2
 else
-    source .venv/bin/activate || python -m venv .venv && source .venv/bin/activate
+    echo "Conda environment not found, using pip fallback..."
+    cd backend
     pip install -r requirements.txt
+    cd ..
 fi
 
-# Run unit tests with coverage report
+# Navigate to backend for testing
+cd backend
+
+# Run unit tests
 echo "Running unit tests..."
-python -m pytest tests/unit -v --cov=app --cov-report=term --cov-report=html:coverage_reports/unit
+python -m pytest tests/unit/ -v --tb=short
