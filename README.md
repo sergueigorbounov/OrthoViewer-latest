@@ -10,6 +10,116 @@ This platform addresses the growing need for interactive visualization tools in 
 
 The increasing complexity of comparative genomics datasets necessitates sophisticated computational tools that can handle large-scale phylogenetic analyses while maintaining scientific rigor. OrthoViewer fills this gap by providing a robust, test-driven platform that ensures reproducible results in evolutionary biology research.
 
+## Quick Start
+
+### Prerequisites
+
+Before installation, ensure you have the following requirements:
+
+- **Python 3.10+** (conda/miniforge recommended for best package management)
+- **Node.js 16+** with npm
+- **Git** for version control
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd orthoviewer2
+   ```
+
+2. **Set up the conda environment (Recommended):**
+   ```bash
+   # Install conda/miniforge if not available:
+   # https://github.com/conda-forge/miniforge
+   
+   # Create and activate the orthoviewer2 environment
+   conda env create -f environment.yml
+   conda activate orthoviewer2
+   ```
+
+3. **Alternative: Install with pip (if conda not available):**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   cd ..
+   ```
+
+4. **Install frontend dependencies:**
+   ```bash
+   cd frontend-vite
+   npm install
+   cd ..
+   ```
+
+### Running the Application
+
+**One-command startup:**
+```bash
+./dev.sh
+```
+
+This script will:
+- Automatically create/activate the conda environment
+- Start the FastAPI backend on http://localhost:8003
+- Launch the Vite frontend on http://localhost:5173
+- Set up hot-reload for development
+
+**Manual startup (alternative):**
+```bash
+# Terminal 1 - Backend
+conda activate orthoviewer2
+cd backend
+uvicorn app.fastapi_main:app --host 0.0.0.0 --port 8003 --reload
+
+# Terminal 2 - Frontend
+cd frontend-vite
+npm run dev
+```
+
+### Access the Application
+
+- **Frontend**: http://localhost:5173
+- **API Documentation**: http://localhost:8003/docs
+- **API Health Check**: http://localhost:8003/api/health
+
+### Test-Driven Development
+
+For development with continuous testing:
+```bash
+./tdd.sh
+```
+
+This provides a comprehensive TDD environment with automated test execution, code formatting, and development tools.
+
+### Verification
+
+Test that everything is working:
+```bash
+# Test backend packages
+conda activate orthoviewer2
+python -c "import fastapi, uvicorn, ete3, pytest, pandas, prometheus_client; print('✓ All packages imported successfully')"
+
+# Test frontend build
+cd frontend-vite
+npm run build
+```
+
+### Troubleshooting
+
+**Common Issues:**
+
+- **Conda not found**: Install conda/miniforge from https://github.com/conda-forge/miniforge
+- **Environment creation fails**: Make sure you have write permissions and sufficient disk space
+- **Backend import errors**: Verify conda environment is activated: `conda activate orthoviewer2`
+- **Frontend fails to start**: Ensure Node.js 16+ is installed and `npm install` completed successfully
+- **Port conflicts**: The script automatically handles port conflicts, but you can manually kill processes using ports 8003/5173
+
+**Getting Help:**
+- Check logs in the `logs/` directory for detailed error messages
+- Run `./dev.sh --help` for usage information
+- Run `./tdd.sh --help` for development environment help
+
 ## Technical Architecture
 
 ### System Overview
