@@ -266,22 +266,22 @@ else
     success "Backend dependencies are installed"
 fi
 
-# Find main FastAPI file
-cd backend
+# Check for FastAPI app
+info "Locating FastAPI application..."
 FASTAPI_MAIN=""
-if [ -f "app/fastapi_main.py" ]; then
-    FASTAPI_MAIN="app.fastapi_main:app"
-    success "Found FastAPI app: app/fastapi_main.py"
-elif [ -f "app/main.py" ]; then
+if [ -f "app/main.py" ]; then
     FASTAPI_MAIN="app.main:app"
     success "Found FastAPI app: app/main.py"
+elif [ -f "app/fastapi_main.py" ]; then
+    FASTAPI_MAIN="app.fastapi_main:app"
+    success "Found FastAPI app: app/fastapi_main.py"
 elif [ -f "main.py" ]; then
     FASTAPI_MAIN="main:app"
     success "Found FastAPI app: main.py"
 else
-    error "Cannot find FastAPI main file. Expected one of:"
-    echo "  - backend/app/fastapi_main.py"
+    error "FastAPI app not found. Expected one of:"
     echo "  - backend/app/main.py"
+    echo "  - backend/app/fastapi_main.py"
     echo "  - backend/main.py"
     exit 1
 fi
