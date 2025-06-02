@@ -1,3 +1,25 @@
+// OrthologueSearch.tsx
+// This component provides a search interface for finding gene orthologues.
+// 
+// Example usage:
+// ```tsx
+// <OrthologueSearch />
+// ```
+//
+// Flow:
+// 1. User enters a gene ID
+// 2. Component validates input
+// 3. Makes API call to search orthologues
+// 4. Displays results or error
+//
+// State management:
+// ```tsx
+// const [geneId, setGeneId] = useState<string>(''); // Stores current gene ID
+// const [loading, setLoading] = useState<boolean>(false); // Tracks API call status
+// const [error, setError] = useState<string | null>(null); // Stores error messages
+// const [searchResults, setSearchResults] = useState<SearchResults | null>(null); // Stores API response
+// ```
+
 import React, { useState } from 'react';
 import {
   Box,
@@ -19,6 +41,18 @@ const OrthologueSearch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
 
+  // handleSearch: Performs the orthologue search
+  // 
+  // Example:
+  // ```tsx
+  // await handleSearch(); // Searches for current geneId
+  // ```
+  //
+  // Error handling:
+  // - Network errors: Shows connectivity message
+  // - Timeout: Suggests trying again
+  // - 404: Invalid gene ID
+  // - 500: Server error
   const handleSearch = async () => {
     if (!geneId) {
       setError('Please enter a gene ID');
@@ -57,12 +91,26 @@ const OrthologueSearch: React.FC = () => {
     }
   };
 
+  // handleKeyDown: Enables search on Enter key press
+  // 
+  // Example:
+  // ```tsx
+  // <TextField onKeyDown={handleKeyDown} />
+  // ```
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && geneId) {
       handleSearch();
     }
   };
 
+  // Render: Component layout
+  // 
+  // Structure:
+  // 1. Title and description
+  // 2. Search form with gene ID input
+  // 3. Error alerts if any
+  // 4. Loading indicator during search
+  // 5. Results display when available
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
@@ -134,4 +182,5 @@ const OrthologueSearch: React.FC = () => {
   );
 };
 
+// Export the component for use in other parts of the application
 export default OrthologueSearch;

@@ -25,15 +25,15 @@ fi
 TEST_TYPE=${1:-all}
 
 # Set up environment
-if [ -f "environment.yml" ]; then
+if [ -f "../environment.yml" ]; then
   # Check if conda environment exists and activate it
-  ENV_NAME=$(grep "name:" environment.yml | cut -d' ' -f2)
+  ENV_NAME=$(grep "name:" ../environment.yml | cut -d' ' -f2)
   if conda info --envs | grep -q "$ENV_NAME"; then
     echo -e "${BLUE}Activating conda environment: $ENV_NAME${NC}"
     eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
   else
-    echo -e "${YELLOW}Creating conda environment from environment.yml...${NC}"
-    conda env create -f environment.yml
+    echo -e "${YELLOW}Creating conda environment from ../environment.yml...${NC}"
+    conda env create -f ../environment.yml
     eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
   fi
 else
@@ -45,9 +45,11 @@ else
   echo -e "${BLUE}Activating virtual environment...${NC}"
   source .venv/bin/activate
   
-  # Install requirements
+  # Install requirements via pip fallback
   echo -e "${BLUE}Installing requirements...${NC}"
-  pip install -r requirements.txt
+  if [ -f "requirements.txt" ]; then
+    pip install -r requirements.txt
+  fi
   
   # Install test requirements if they exist
   if [ -f "requirements-test.txt" ]; then

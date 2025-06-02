@@ -16,26 +16,30 @@ fi
 COMMAND=${1:-test}
 
 # Set up environment
-if [ -f "environment.yml" ]; then
+if [ -f "../environment.yml" ]; then
   # Check if conda environment exists and activate it
-  ENV_NAME=$(grep "name:" environment.yml | cut -d' ' -f2)
+  ENV_NAME=$(grep "name:" ../environment.yml | cut -d' ' -f2)
   if conda info --envs | grep -q "$ENV_NAME"; then
     echo "Activating conda environment: $ENV_NAME"
     eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
   else
-    echo "Creating conda environment from environment.yml..."
-    conda env create -f environment.yml
+    echo "Creating conda environment from ../environment.yml..."
+    conda env create -f ../environment.yml
     eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
   fi
 else
-  # Use virtual environment
+  # Use virtual environment with pip fallback
   if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
     python -m venv .venv
   fi
   echo "Activating virtual environment..."
   source .venv/bin/activate
-  pip install -r requirements.txt
+  
+  # Install requirements via pip if no conda environment
+  if [ -f "requirements.txt" ]; then
+    pip install -r requirements.txt
+  fi
 fi
 
 case $COMMAND in
@@ -52,13 +56,23 @@ case $COMMAND in
     if command -v black >/dev/null; then
       black app/ tests/
     else
-      pip install black
+      echo "Installing black..."
+      if conda list | grep -q black; then
+        echo "Black available via conda"
+      else
+        pip install black
+      fi
       black app/ tests/
     fi
     if command -v flake8 >/dev/null; then
       flake8 app/ tests/
     else
-      pip install flake8
+      echo "Installing flake8..."
+      if conda list | grep -q flake8; then
+        echo "Flake8 available via conda"
+      else
+        pip install flake8
+      fi
       flake8 app/ tests/
     fi
     ;;

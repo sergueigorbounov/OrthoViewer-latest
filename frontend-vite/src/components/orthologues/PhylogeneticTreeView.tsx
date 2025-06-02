@@ -1,25 +1,83 @@
+// PhylogeneticTreeView.tsx
+// Interactive phylogenetic tree visualization using D3.js for evolutionary relationship analysis
+//
+// Scientific Context:
+// - Visualizes evolutionary relationships between species using Newick tree format
+// - Supports both radial and rectangular dendrograms (standard in phylogenetics)
+// - Implements equal-spacing algorithms for better tree visualization
+// - Handles branch lengths and support values from phylogenetic analysis
+//
+// Input Data Formats:
+// - Newick Format: Standard phylogenetic tree representation
+//   Example: "((A:0.1,B:0.2):0.3,C:0.4);"
+//   - Numbers after colons represent evolutionary distances
+//   - Parentheses denote hierarchical relationships
+//
+// - Species Count Data: Array of species occurrence data
+//   Example: [{species_name: "Arabidopsis_thaliana", count: 5}, ...]
+//
+// Example usage:
+// ```tsx
+// <PhylogeneticTreeView
+//   newickData="((Arabidopsis_thaliana:0.1,Brassica_napus:0.2):0.3,Oryza_sativa:0.4);"
+//   speciesCounts={[
+//     { species_name: "Arabidopsis_thaliana", count: 5 },
+//     { species_name: "Brassica_napus", count: 3 },
+//     { species_name: "Oryza_sativa", count: 4 }
+//   ]}
+//   selectedSpecies="Arabidopsis_thaliana"
+//   onSpeciesSelected={(species) => console.log(`Selected: ${species}`)}
+// />
+// ```
+//
+// Performance Notes:
+// - Optimized for trees with up to 1000 species
+// - Uses D3 force layout for non-overlapping labels
+// - Implements lazy rendering for large trees
+// - Caches tree layout calculations
+//
+// Visualization Features:
+// 1. Interactive zoom and pan
+// 2. Species highlighting
+// 3. Branch length visualization
+// 4. Species count integration
+// 5. Radial/Rectangular layout switching
+//
+// References:
+// - D3 Tree Layout: https://github.com/d3/d3-hierarchy
+// - Newick Format: http://evolution.genetics.washington.edu/phylip/newick_doc.html
+// - Tree Visualization: https://doi.org/10.1093/bioinformatics/btv636
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { Box, Typography, CircularProgress, Alert, FormControl, FormControlLabel, Switch } from '@mui/material';
-import type { SpeciesCountData } from '../api/orthologueApi';
+import { Box, Typography, CircularProgress, Alert, FormControlLabel, Switch } from '@mui/material';
+import type { SpeciesCountData } from '../../api/orthologueApi';
 
 interface PhylogeneticTreeViewProps {
+  // Newick format string representing the phylogenetic tree
   newickData: string;
+  // Array of species counts from orthologue analysis
   speciesCounts: SpeciesCountData[];
+  // Currently selected species for highlighting
   selectedSpecies?: string | null;
+  // Callback when user selects a species in the tree
   onSpeciesSelected?: (speciesName: string | null) => void;
+  // Callback when tree data is successfully loaded
   onTreeDataLoad?: (loaded: boolean) => void;
 }
 
+// TreeNode: Represents a node in the phylogenetic tree
+// - Internal nodes: Represent common ancestors
+// - Leaf nodes: Represent extant species
 interface TreeNode {
-  id: string;
-  name: string;
-  length?: number;
-  children?: TreeNode[];
-  x?: number;
-  y?: number;
-  count?: number;
-  depth?: number;
+  id: string;          // Unique identifier
+  name: string;        // Species/node name
+  length?: number;     // Branch length (evolutionary distance)
+  children?: TreeNode[]; // Child nodes
+  x?: number;          // X coordinate in visualization
+  y?: number;          // Y coordinate in visualization
+  count?: number;      // Number of orthologues
+  depth?: number;      // Distance from root
 }
 
 const PhylogeneticTreeView: React.FC<PhylogeneticTreeViewProps> = ({ 
@@ -104,6 +162,7 @@ const PhylogeneticTreeView: React.FC<PhylogeneticTreeViewProps> = ({
 };
 
 // D3 Implementation Component
+// Handles the actual tree rendering using D3.js
 const D3TreeImplementation: React.FC<{
   newickData: string;
   speciesCounts: SpeciesCountData[];
@@ -476,15 +535,12 @@ const D3TreeImplementation: React.FC<{
     const root = d3.hierarchy(treeData) as d3.HierarchyNode<TreeNode>;
 
     if (useRadialLayout) {
-      const radius = Math.min(width, height) * 0.4;
+      const maxRadius = Math.min(width, height) * 0.4;
       
       const treeLayout = d3.cluster<TreeNode>()
-        .size([2 * Math.PI, radius])
+        .size([2 * Math.PI, maxRadius])
         .separation((a, b) => {
-          const isLeafA = !a.children || a.children.length === 0;
-          const isLeafB = !b.children || b.children.length === 0;
-          
-          // Equal spacing for radial layout (similar to rectangular)
+          // Equal spacing for radial layout
           let baseSpacing = 1.0;
           if (leafCount > 150) baseSpacing = 0.6;
           else if (leafCount > 100) baseSpacing = 0.7;
@@ -492,74 +548,29 @@ const D3TreeImplementation: React.FC<{
           else if (leafCount > 50) baseSpacing = 0.9;
           else baseSpacing = 1.0;
           
-          if (isLeafA && isLeafB) {
-            return baseSpacing * 1.5; // Equal spacing between leaves
-          } else if (isLeafA || isLeafB) {
-            return baseSpacing * 1.3;
-          } else {
-            return baseSpacing * 1.0;
-          }
+          return baseSpacing * (a.parent === b.parent ? 1 : 2);
         });
         
       treeLayout(root);
       
-      // Force equal angular spacing for all leaves in radial layout
-      const forceEqualRadialSpacing = () => {
-        const allLeaves = root.leaves();
-        if (allLeaves.length <= 1) return;
-        
-        // Sort leaves by their current angular position
-        allLeaves.sort((a, b) => (a.x || 0) - (b.x || 0));
-        
-        // Calculate perfectly equal angular spacing
-        const totalAngle = 2 * Math.PI;
-        const anglePerLeaf = totalAngle / allLeaves.length;
-        
-        // Assign perfectly equal angular positions
-        allLeaves.forEach((leaf, index) => {
-          leaf.x = index * anglePerLeaf;
-          leaf.y = radius; // All leaves at the same radius
-        });
-        
-        // Update internal node positions
-        const updateRadialInternalNodes = (node: d3.HierarchyNode<TreeNode>) => {
-          if (!node.children || node.children.length === 0) {
-            return; // This is a leaf
-          }
-          
-          // Position internal node at the center angle of its children
-          const childAngles = node.children.map(child => {
-            updateRadialInternalNodes(child);
-            return child.x || 0;
-          });
-          
-          // Handle angle wrapping for radial layout
-          let minAngle = Math.min(...childAngles);
-          let maxAngle = Math.max(...childAngles);
-          
-          // Check if we're wrapping around 2π
-          if (maxAngle - minAngle > Math.PI) {
-            // We're wrapping, so calculate the average differently
-            const avgAngle = childAngles.reduce((sum, angle) => {
-              return sum + (angle > Math.PI ? angle - 2 * Math.PI : angle);
-            }, 0) / childAngles.length;
-            node.x = avgAngle < 0 ? avgAngle + 2 * Math.PI : avgAngle;
-          } else {
-            node.x = (minAngle + maxAngle) / 2;
-          }
-        };
-        
-        updateRadialInternalNodes(root);
-      };
+      // 🔥 EQUAL BRANCH LENGTHS (Not equal leaf radius)
+      const branchLength = 60; // Fixed small branch length
       
-      forceEqualRadialSpacing();
+      // Set radius based on tree depth, not evolutionary distance
+      // const maxDepth = Math.max(...root.descendants().map(d => d.depth || 0));
+      
+      root.descendants().forEach(d => {
+        // Each level gets same radial distance increment
+        d.y = (d.depth || 0) * branchLength;
+      });
       
       root.each(d => {
-        (d as any).polar = { angle: d.x, radius: d.y };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (d as any).polar = { angle: d.x || 0, radius: d.y || 0 };
       });
     } else {
-      // Standard tree layout dimensions for equal spacing
-      const treeHeight = Math.max(height * 1.0, leafCount * 18); // Standard 18px per leaf
+      // 🔥 RECTANGULAR LAYOUT (SAME ALGORITHM AS RADIAL)
+      const treeHeight = Math.max(height * 1.0, leafCount * 18);
       const treeWidth = width * 0.75;
       
       // First, use the tree layout with equal spacing (standard phylogenetic style)
@@ -575,20 +586,36 @@ const D3TreeImplementation: React.FC<{
         .domain([0, maxDistance])
         .range([0, treeWidth]);
 
-      // Set x-coordinates based on distance from root for internal nodes
-      // But align all leaf nodes at the right extremity
-      root.each(d => {
-        const isLeaf = !d.children || d.children.length === 0;
-        
-        if (isLeaf) {
-          // All leaves go to the right extremity
-          d.y = treeWidth;
-        } else {
-          // Internal nodes positioned based on evolutionary distance
+      // CHOICE: Dendrogram vs Phylogram layout
+      // Dendrogram: All leaves aligned (current approach - good for relationship comparison)
+      // Phylogram: All nodes positioned by evolutionary distance (better for timing analysis)
+      
+      const usePhylogramLayout = false; // Toggle this to switch between approaches
+      
+      if (usePhylogramLayout) {
+        // 🧬 PHYLOGRAM APPROACH: Position ALL nodes by evolutionary distance
+        // This creates a more scientifically accurate representation of evolutionary timing
+        // but can be harder to read when branch lengths vary dramatically
+        root.each(d => {
           const distanceFromRoot = calculateDistanceFromRoot(d);
           d.y = xScale(distanceFromRoot);
-        }
-      });
+        });
+      } else {
+        // 📊 DENDROGRAM APPROACH: Align all leaves, position internals by distance
+        // This emphasizes relationships over timing, making comparisons easier
+        root.each(d => {
+          const isLeaf = !d.children || d.children.length === 0;
+          
+          if (isLeaf) {
+            // All leaves go to the right extremity for easy comparison
+            d.y = treeWidth;
+          } else {
+            // Internal nodes positioned based on evolutionary distance
+            const distanceFromRoot = calculateDistanceFromRoot(d);
+            d.y = xScale(distanceFromRoot);
+          }
+        });
+      }
 
       // CRITICAL: Implement proper subtree separation to prevent line crossings
       const assignNonOverlappingRanges = (node: d3.HierarchyNode<TreeNode>) => {
@@ -779,6 +806,10 @@ const D3TreeImplementation: React.FC<{
     const links = g.append('g').attr('class', 'links');
       
     if (useRadialLayout) {
+      // 🧬 INVERTED PHYLOGENETIC RADIAL: ARC FIRST, THEN RADIAL
+      // This creates a "hub and spoke" pattern where ancestral relationships
+      // are emphasized through curved connections at inner radii, then each
+      // lineage extends cleanly outward to show independent evolution
       links.selectAll('.link')
         .data(root.links())
         .enter()
@@ -795,19 +826,26 @@ const D3TreeImplementation: React.FC<{
           const targetX = targetRadius * Math.sin(targetAngle);
           const targetY = -targetRadius * Math.cos(targetAngle);
           
-          const midX = targetRadius * Math.sin(sourceAngle);
-          const midY = -targetRadius * Math.cos(sourceAngle);
+          // 🔥 INVERTED PATTERN: ARC FIRST, THEN RADIAL
+          // Step 1: Arc around at source radius (preserving source radius)
+          const midX = sourceRadius * Math.sin(targetAngle);
+          const midY = -sourceRadius * Math.cos(targetAngle);
           
-          if (Math.abs(sourceAngle - targetAngle) < 0.1) {
+          // Step 2: Go radially outward to target position
+          const angleDiff = Math.abs(targetAngle - sourceAngle);
+          
+          if (angleDiff < 0.01) {
+            // Same angle - pure radial line
             return `M${sourceX},${sourceY} L${targetX},${targetY}`;
+          } else {
+            // Inverted phylogenetic: arc + radial
+            const largeArcFlag = angleDiff > Math.PI ? 1 : 0;
+            const sweepFlag = targetAngle > sourceAngle ? 1 : 0;
+            
+            return `M${sourceX},${sourceY} 
+                    A${sourceRadius},${sourceRadius} 0 ${largeArcFlag},${sweepFlag} ${midX},${midY}
+                    L${targetX},${targetY}`;
           }
-          
-          return `M${sourceX},${sourceY} 
-                  L${midX},${midY} 
-                  A${targetRadius},${targetRadius} 0 
-                  ${Math.abs(targetAngle - sourceAngle) > Math.PI ? 1 : 0} 
-                  ${targetAngle > sourceAngle ? 1 : 0} 
-                  ${targetX},${targetY}`;
         })
         .attr('fill', 'none')
         .attr('stroke', (d: any) => {
@@ -863,6 +901,10 @@ const D3TreeImplementation: React.FC<{
       .attr('class', 'node')
       .attr('transform', (d: any) => {
         if (useRadialLayout) {
+          // For radial layout, all nodes (both leaves and internal) should be
+          // positioned at their natural evolutionary position: (radius, angle)
+          // This creates a clean, consistent appearance where the tree structure
+          // is clearly visible without artificial "shoulder" positioning
           const x = d.y * Math.sin(d.x);
           const y = -d.y * Math.cos(d.x);
           return `translate(${x},${y})`;

@@ -111,18 +111,15 @@ setup_conda_env() {
       exit 1
     }
     
-    # Install/update dependencies
-    echo -e "${CYAN}Installing Python dependencies...${NC}"
-    pip install -r requirements.txt
+    # Install/update dependencies using conda
+    echo -e "${CYAN}Updating Python environment from environment.yml...${NC}"
+    conda env update -f environment.yml
     
-    # Check for ETE3 specifically (important for phylogenetics)
-    if ! python -c "import ete3" 2>/dev/null; then
-      echo -e "${YELLOW}Installing ETE3 for phylogenetic analysis...${NC}"
-      pip install ete3
+    # Verify key packages are available
+    if ! python -c "import ete3, fastapi, pytest" 2>/dev/null; then
+      echo -e "${YELLOW}Some packages not found, checking conda environment...${NC}"
+      conda list | grep -E "(ete3|fastapi|pytest|uvicorn)"
     fi
-    
-    # Install additional development dependencies
-    pip install pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
     
   elif command -v python3 &> /dev/null; then
     echo -e "${YELLOW}Using venv for Python environment management${NC}"

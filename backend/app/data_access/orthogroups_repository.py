@@ -134,11 +134,11 @@ class OrthogroupsRepository:
             }
             
             return result_df, pagination
-                
+
         except Exception as e:
-                logger.error(f"Failed to load orthogroups data: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
-        
+            logger.error(f"Failed to load orthogroups data: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to load orthogroups data: {str(e)}")
+
     def _build_gene_to_orthogroup_map(self, df: pd.DataFrame) -> Dict[str, str]:
         """Build gene to orthogroup mapping for faster lookups"""
         gene_map = {}

@@ -218,8 +218,17 @@ if command -v conda &> /dev/null; then
         conda activate orthoviewer2
         success "Activated orthoviewer2 conda environment"
     else
-        warning "orthoviewer2 conda environment not found, using current environment"
-        info "To create it: conda create -n orthoviewer2 python=3.11 fastapi uvicorn"
+        warning "orthoviewer2 conda environment not found"
+        info "Creating orthoviewer2 environment from environment.yml..."
+        if [ -f "environment.yml" ]; then
+            conda env create -f environment.yml
+            source "$(conda info --base)/etc/profile.d/conda.sh"
+            conda activate orthoviewer2
+            success "Created and activated orthoviewer2 conda environment"
+        else
+            error "environment.yml not found. Cannot create environment."
+            exit 1
+        fi
     fi
 else
     warning "Conda not found, using system Python"
@@ -229,18 +238,27 @@ fi
 # Check backend dependencies
 info "Checking backend dependencies..."
 if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
-    warning "FastAPI or uvicorn not installed. Installing required packages..."
-    cd backend
-    if [ -f "requirements.txt" ]; then
-        $PYTHON_CMD -m pip install -r requirements.txt
+    warning "FastAPI or uvicorn not installed."
+    if [ "$CONDA_AVAILABLE" = true ] && conda env list | grep -q "orthoviewer2"; then
+        info "Updating conda environment with latest dependencies..."
+        conda env update -f environment.yml
+        success "Updated conda environment"
     else
-        $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+        warning "Installing required packages with pip..."
+        cd backend
+        if [ -f "requirements.txt" ]; then
+            $PYTHON_CMD -m pip install -r requirements.txt
+        else
+            $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+        fi
+        cd ..
     fi
-    cd ..
     
     # Re-check
     if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
-        error "Failed to install backend dependencies. Please install manually:"
+        error "Failed to install backend dependencies. Try:"
+        echo "  conda env update -f environment.yml"
+        echo "  OR"
         echo "  pip install fastapi uvicorn python-multipart"
         exit 1
     fi
