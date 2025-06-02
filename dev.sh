@@ -240,9 +240,13 @@ info "Checking backend dependencies..."
 if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
     warning "FastAPI or uvicorn not installed."
     if [ "$CONDA_AVAILABLE" = true ] && conda env list | grep -q "orthoviewer2"; then
-        info "Updating conda environment with latest dependencies..."
-        conda env update -f environment.yml
-        success "Updated conda environment"
+        info "Installing packages in activated conda environment..."
+        # Use conda-run to ensure we're in the right environment
+        conda run -n orthoviewer2 python -c "import fastapi, uvicorn; print('Dependencies available')" 2>/dev/null || {
+            info "Installing FastAPI and uvicorn in conda environment..."
+            conda install -n orthoviewer2 -c conda-forge fastapi uvicorn python-multipart -y
+        }
+        success "Backend dependencies ready in conda environment"
     else
         warning "Installing required packages with pip..."
         cd backend
@@ -254,8 +258,15 @@ if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
         cd ..
     fi
     
-    # Re-check
-    if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
+    # Re-check with conda environment
+    if [ "$CONDA_AVAILABLE" = true ] && conda env list | grep -q "orthoviewer2"; then
+        if conda run -n orthoviewer2 python -c "import fastapi, uvicorn" 2>/dev/null; then
+            success "Backend dependencies verified in conda environment"
+        else
+            error "Failed to install backend dependencies in conda environment"
+            exit 1
+        fi
+    elif ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
         error "Failed to install backend dependencies. Try:"
         echo "  conda env update -f environment.yml"
         echo "  OR"
@@ -269,15 +280,15 @@ fi
 # Check for FastAPI app
 info "Locating FastAPI application..."
 FASTAPI_MAIN=""
-if [ -f "app/main.py" ]; then
+if [ -f "backend/app/main.py" ]; then
     FASTAPI_MAIN="app.main:app"
-    success "Found FastAPI app: app/main.py"
-elif [ -f "app/fastapi_main.py" ]; then
+    success "Found FastAPI app: backend/app/main.py"
+elif [ -f "backend/app/fastapi_main.py" ]; then
     FASTAPI_MAIN="app.fastapi_main:app"
-    success "Found FastAPI app: app/fastapi_main.py"
-elif [ -f "main.py" ]; then
+    success "Found FastAPI app: backend/app/fastapi_main.py"
+elif [ -f "backend/main.py" ]; then
     FASTAPI_MAIN="main:app"
-    success "Found FastAPI app: main.py"
+    success "Found FastAPI app: backend/main.py"
 else
     error "FastAPI app not found. Expected one of:"
     echo "  - backend/app/main.py"
@@ -307,7 +318,14 @@ fi
 
 # Start the backend
 info "Starting backend server on port $BACKEND_PORT..."
-($PYTHON_CMD -m uvicorn $FASTAPI_MAIN --host 0.0.0.0 --port $BACKEND_PORT --reload > ../logs/backend.log 2>&1) &
+cd backend
+if [ "$CONDA_AVAILABLE" = true ] && conda env list | grep -q "orthoviewer2"; then
+    # Use conda run to ensure proper environment
+    (conda run -n orthoviewer2 python -m uvicorn $FASTAPI_MAIN --host 0.0.0.0 --port $BACKEND_PORT --reload > ../logs/backend.log 2>&1) &
+else
+    # Fallback to regular python
+    ($PYTHON_CMD -m uvicorn $FASTAPI_MAIN --host 0.0.0.0 --port $BACKEND_PORT --reload > ../logs/backend.log 2>&1) &
+fi
 BACKEND_PID=$!
 cd ..
 
