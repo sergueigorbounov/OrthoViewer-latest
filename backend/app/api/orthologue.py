@@ -15,10 +15,11 @@ from .search_patch import search_orthologues_patched
 from .gene_finder import build_gene_to_orthogroup_map, find_gene_orthogroup as find_gene_in_orthogroup_lookup
 from app.data_access.orthogroups_repository import OrthogroupsRepository
 from ..core.monitoring import monitor_performance, track_memory_usage
+from ..core.config import get_settings
 
 # ETE3 imports
 try:
-    from ete3 import Tree, TreeStyle, NodeStyle
+    from app.utils.ete3_compat import Tree, TreeStyle, NodeStyle, ETE3_GUI_AVAILABLE
     ETE_AVAILABLE = True
 except ImportError as e:
     ETE_AVAILABLE = False
@@ -34,12 +35,13 @@ router = APIRouter(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Data paths - Utiliser le chemin absolu pour les fichiers de données
-BASE_DIR = "/home/sgorbounov/Documents/orthoviewer2-clean"
-DATA_DIR = os.path.join(BASE_DIR, "data/orthofinder")
-TREE_FILE = os.path.join(DATA_DIR, "SpeciesTree_nameSp_completeGenome110124.tree")
-ORTHOGROUPS_FILE = os.path.join(DATA_DIR, "Orthogroups_clean_121124.txt")  # Using the full dataset instead of sample
-SPECIES_MAPPING_FILE = os.path.join(DATA_DIR, "Table_S1_Metadata_angiosperm_species.csv")
+# Get settings from config
+settings = get_settings()
+BASE_DIR = settings.BASE_DIR
+DATA_DIR = settings.DATA_DIR
+TREE_FILE = settings.TREE_FILE
+ORTHOGROUPS_FILE = settings.ORTHOGROUPS_FILE
+SPECIES_MAPPING_FILE = settings.SPECIES_MAPPING_FILE
 
 # Global variables
 _orthogroups_data = None
@@ -706,23 +708,49 @@ async def get_ete_status():
                 "message": "ETE3 toolkit not installed. Install with: conda install -c etetoolkit ete3"
             }
         
-        # Test ETE functionality
-        tree = load_ete_tree()
-        leaf_count = len(tree.get_leaves())
+        # Check if tree file exists before trying to load it
+        import os
+        tree_exists = os.path.exists(TREE_FILE)
         
-        return {
-            "success": True,
-            "ete_available": True,
-            "tree_loaded": True,
-            "leaf_count": leaf_count,
-            "message": f"ETE3 toolkit ready with {leaf_count} species"
-        }
+        if not tree_exists:
+            return {
+                "success": True,
+                "ete_available": True,
+                "tree_loaded": False,
+                "tree_file_exists": False,
+                "tree_file_path": TREE_FILE,
+                "message": "ETE3 toolkit available but tree file not found"
+            }
+        
+        # Try to load tree only if file exists
+        try:
+            tree = load_ete_tree()
+            leaf_count = len(tree.get_leaves())
+            
+            return {
+                "success": True,
+                "ete_available": True,
+                "tree_loaded": True,
+                "tree_file_exists": True,
+                "leaf_count": leaf_count,
+                "message": f"ETE3 toolkit ready with {leaf_count} species"
+            }
+        except Exception as tree_error:
+            return {
+                "success": True,
+                "ete_available": True,
+                "tree_loaded": False,
+                "tree_file_exists": True,
+                "tree_error": str(tree_error),
+                "message": f"ETE3 available but tree loading failed: {str(tree_error)}"
+            }
+            
     except Exception as e:
         return {
             "success": False,
             "ete_available": ETE_AVAILABLE,
             "error": str(e),
-            "message": f"ETE3 error: {str(e)}"
+            "message": f"ETE3 status check failed: {str(e)}"
         }
 
 # Debug endpoint to check species mapping (remove after testing)

@@ -299,6 +299,7 @@ fi
 
 # Test FastAPI app import
 info "Testing FastAPI app import..."
+cd backend
 export PYTHONPATH=$PWD
 IMPORT_MODULE="${FASTAPI_MAIN%:*}"
 IMPORT_APP="${FASTAPI_MAIN#*:}"
@@ -315,6 +316,7 @@ except Exception as e:
 else
     warning "FastAPI app import test failed. Continuing anyway - app may still work."
 fi
+cd ..
 
 # Start the backend
 info "Starting backend server on port $BACKEND_PORT..."

@@ -31,6 +31,8 @@ try:
     from app.api.routes.genes import router as genes_router
     from app.api.routes.orthogroups import router as orthogroups_router
     from app.api.routes.dashboard import router as dashboard_router
+    # Add orthologue router
+    from app.api.orthologue import router as orthologue_router
 except ImportError as e:
     logging.warning(f"Some routes not available: {e}")
     # Create minimal routers for missing routes
@@ -40,6 +42,7 @@ except ImportError as e:
     genes_router = APIRouter()
     orthogroups_router = APIRouter()
     dashboard_router = APIRouter()
+    orthologue_router = APIRouter()
 
 # ==========================================
 # FASTAPI APPLICATION SETUP
@@ -74,6 +77,9 @@ app.include_router(species_router)
 app.include_router(genes_router) 
 app.include_router(orthogroups_router)
 app.include_router(dashboard_router)
+
+# Add orthologue routes
+app.include_router(orthologue_router)
 
 # ==========================================
 # CORE ENDPOINTS
