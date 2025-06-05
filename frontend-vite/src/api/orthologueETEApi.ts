@@ -23,7 +23,7 @@ export const searchOrthologuesETE = async (geneId: string): Promise<SearchResult
 
 export const getOrthologueETETree = async (orthogroupId: string): Promise<string> => {
   try {
-    const response = await apiCall(`/api/orthologue/ete/tree/${orthogroupId}`, {
+    const response = await apiCall(`/api/orthologue/tree/${orthogroupId}`, {
       method: 'GET',
     });
     return response.tree;
