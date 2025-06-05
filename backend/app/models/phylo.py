@@ -72,7 +72,7 @@ class ETESearchRequest(BaseModel):
     """Request model for ETE toolkit search"""
     search_type: str  # "gene", "species", "clade", "common_ancestor"
     query: str
-    max_results: Optional[int] = 50
+    max_results: Optional[int] = None  # None = unlimited search
     include_tree_image: Optional[bool] = False
 
 class ETESearchResult(BaseModel):
@@ -93,6 +93,9 @@ class ETESearchResponse(BaseModel):
     results: List[ETESearchResult]
     total_results: int
     tree_image: Optional[str] = None  # Base64 encoded image
+    total_orthologues: Optional[int] = None  # Total number of orthologues
+    orthogroup_id: Optional[str] = None  # Orthogroup ID for gene searches
+    species_with_orthologues: Optional[int] = None  # Number of species with orthologues
     message: Optional[str] = None
 
 # =============================================================================
@@ -203,42 +206,6 @@ class ComparisonResponse(BaseModel):
     similarity_ratio: float
     message: Optional[str] = None
 
-# =============================================================================
-# UTILITY FUNCTIONS
-# =============================================================================
-
-def newick_to_dict(newick_str: str) -> Dict[str, Any]:
-    """Convert Newick string to dictionary representation"""
-    # This is a placeholder - the actual implementation would be in the API layer
-    return {
-        "id": "root",
-        "name": "root",
-        "children": []
-    }
-
-# =============================================================================
-# UPDATE FORWARD REFERENCES
-# =============================================================================
-
-# Update forward references for recursive models
-# Pydantic v1 compatibility fix
-# Pydantic v1 compatibility fix
-if hasattr(PhyloNodeData, "model_rebuild"):
-    # Pydantic v1 compatibility fix
-    if hasattr(PhyloNodeData, "model_rebuild"):
-        # Pydantic v1 compatibility fix
-        if hasattr(PhyloNodeData, "model_rebuild"):
-            # Pydantic v1 compatibility fix
-            if hasattr(PhyloNodeData, "model_rebuild"):
-                PhyloNodeData.model_rebuild()
-            else:
-                PhyloNodeData.update_forward_refs()
-        else:
-            PhyloNodeData.update_forward_refs()
-    else:
-        PhyloNodeData.update_forward_refs()
-else:
-    PhyloNodeData.update_forward_refs()
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================

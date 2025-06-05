@@ -51,6 +51,14 @@ _ete_tree = None  # ETE tree cache
 _gene_map = {}  # Cache for gene-to-orthogroup mapping
 _leaf_node_cache = {}  # Cache for leaf nodes by species code
 
+# Force reload by resetting all cached data
+_orthogroups_data = None
+_species_mapping = None
+_species_tree = None
+_ete_tree = None
+_gene_map = {}
+_leaf_node_cache = {}
+
 repo = OrthogroupsRepository()
 
 def load_orthogroups_data():
@@ -60,11 +68,27 @@ def load_orthogroups_data():
 
     if _orthogroups_data is None:
         try:
-            logger.info(f"Loading orthogroups data from {ORTHOGROUPS_FILE}")
+            # Use the same file prioritization as OrthogroupsRepository
+            potential_files = [
+                os.path.join(DATA_DIR, "Orthogroups_clean_121124.txt"),  # Full file - PRIORITÉ
+                os.path.join(DATA_DIR, "Orthogroups_clean_121124_sample.csv"),  # Sample file
+                os.path.join(DATA_DIR, "Orthogroups.tsv")  # Fallback
+            ]
+            
+            orthogroups_file = None
+            for file_path in potential_files:
+                if os.path.exists(file_path):
+                    orthogroups_file = file_path
+                    break
+                    
+            if not orthogroups_file:
+                raise FileNotFoundError("No orthogroups file found")
+                
+            logger.info(f"Loading orthogroups data from {orthogroups_file}")
             # Use appropriate separator and optimize pandas read
-            sep = '\t' if ORTHOGROUPS_FILE.endswith('.tsv') or ORTHOGROUPS_FILE.endswith('.txt') else ','
+            sep = '\t' if orthogroups_file.endswith('.tsv') or orthogroups_file.endswith('.txt') else ','
             _orthogroups_data = pd.read_csv(
-                ORTHOGROUPS_FILE,
+                orthogroups_file,
                 sep=sep,
                 low_memory=False,
                 dtype=str,  # Treat all columns as strings
@@ -154,8 +178,23 @@ def load_species_mapping():
             id_to_full = dict(zip(mapping_df[species_id_col], mapping_df[species_full_col]))
             full_to_id = dict(zip(mapping_df[species_full_col], mapping_df[species_id_col]))
             
-            # Load orthogroups to see what species we actually need to map
-            ortho_df = pd.read_csv(ORTHOGROUPS_FILE, sep='\t', low_memory=False)
+            # Load orthogroups to see what species we actually need to map - use same logic as load_orthogroups_data
+            potential_files = [
+                os.path.join(DATA_DIR, "Orthogroups_clean_121124.txt"),  # Full file - PRIORITÉ
+                os.path.join(DATA_DIR, "Orthogroups_clean_121124_sample.csv"),  # Sample file
+                os.path.join(DATA_DIR, "Orthogroups.tsv")  # Fallback
+            ]
+            
+            orthogroups_file = None
+            for file_path in potential_files:
+                if os.path.exists(file_path):
+                    orthogroups_file = file_path
+                    break
+                    
+            if not orthogroups_file:
+                raise FileNotFoundError("No orthogroups file found")
+                
+            ortho_df = pd.read_csv(orthogroups_file, sep='\t', low_memory=False)
             ortho_species = set(ortho_df.columns[1:])
             
             # Enhanced mapping with fallbacks for missing species
@@ -255,10 +294,9 @@ def load_ete_tree() -> Tree:
             raise
     return _ete_tree
 
-def search_tree_by_gene(gene_id: str, max_results: int = 50) -> List[ETESearchResult]:
+def search_tree_by_gene(gene_id: str, max_results: Optional[int] = None) -> List[ETESearchResult]:
     """Search for species containing a specific gene"""
     results = []
-    tree = load_ete_tree()  # This will also initialize the leaf node cache
     ortho_data = load_orthogroups_data()
     species_mapping = load_species_mapping()
     
@@ -268,6 +306,8 @@ def search_tree_by_gene(gene_id: str, max_results: int = 50) -> List[ETESearchRe
     
     # Find species with the gene
     species_with_gene = []
+    genes_by_species = {}
+    
     if orthogroup_id:
         # Get all genes in this orthogroup
         genes_by_species = get_orthogroup_genes(orthogroup_id)
@@ -278,83 +318,44 @@ def search_tree_by_gene(gene_id: str, max_results: int = 50) -> List[ETESearchRe
             mask = ortho_data[col].astype(str).str.contains(gene_id, na=False)
             if mask.any():
                 species_with_gene.append(col)
+                # Get genes for this species
+                genes_in_species = []
+                for idx, row in ortho_data[mask].iterrows():
+                    cell_value = row[col]
+                    if isinstance(cell_value, str) and cell_value.strip():
+                        genes = [gene.strip() for gene in cell_value.split(',')]
+                        genes_in_species.extend(genes)
+                genes_by_species[col] = genes_in_species
     
     # DEBUG: Log what we found
     logger.info(f"Found gene {gene_id} in species: {species_with_gene}")
-    logger.info(f"Available leaf nodes in tree: {list(_leaf_node_cache.keys())[:10]}")  # First 10
+    logger.info(f"Total genes found: {sum(len(genes) for genes in genes_by_species.values())}")
     
-    # Check for matches and mismatches
-    matched_species = []
-    unmatched_species = []
-    
+    # Instead of trying to match to tree, just create results for all species
     for species_code in species_with_gene:
-        # Try direct match first
-        if species_code in _leaf_node_cache:
-            matched_species.append(species_code)
-            leaf = _leaf_node_cache[species_code]
-            result = ETESearchResult(
-                node_name=getattr(leaf, "full_species_name", leaf.name),
-                node_type="leaf",
-                distance_to_root=leaf.get_distance(tree),
-                gene_count=len(genes_by_species[species_code]) if orthogroup_id else 1,
-                species_count=1,
-                clade_members=[getattr(leaf, "full_species_name", leaf.name)]
-            )
-            results.append(result)
-        else:
-            unmatched_species.append(species_code)
-    
-    # DEBUG: Log the mismatch issue
-    logger.warning(f"Species matched in tree: {matched_species}")
-    logger.warning(f"Species NOT found in tree: {unmatched_species}")
-    
-    # Try to match unmatched species using species mapping
-    for unmatched in unmatched_species:
-        # Try mapping strategies
-        mapped_name = None
+        # Get full species name from mapping
+        full_species_name = get_species_full_name_enhanced(species_code, species_mapping)
         
-        # 1. Try species mapping from metadata file
-        for mapping_key in ['id_to_full', 'prefix_to_full', 'newick_to_full']:
-            if unmatched in species_mapping.get(mapping_key, {}):
-                mapped_name = species_mapping[mapping_key][unmatched]
-                logger.info(f"Found mapping for {unmatched} -> {mapped_name}")
-                break
-        
-        # 2. If no mapping found, try fuzzy matching
-        if not mapped_name:
-            for tree_species in _leaf_node_cache.keys():
-                # Try different matching strategies
-                if (len(unmatched) >= 3 and len(tree_species) >= 3 and 
-                    (unmatched[:3].lower() == tree_species[:3].lower() or  # First 3 chars match
-                     unmatched.lower() in tree_species.lower() or          # One contains the other
-                     tree_species.lower() in unmatched.lower())):
-                    mapped_name = tree_species
-                    logger.info(f"Fuzzy match found: {unmatched} -> {tree_species}")
-                    break
-        
-        # If we found a mapping, create a result
-        if mapped_name and mapped_name in _leaf_node_cache:
-            leaf = _leaf_node_cache[mapped_name]
-            result = ETESearchResult(
-                node_name=f"{getattr(leaf, 'full_species_name', leaf.name)} (mapped from {unmatched})",
-                node_type="leaf",
-                distance_to_root=leaf.get_distance(tree),
-                gene_count=len(genes_by_species[unmatched]) if orthogroup_id else 1,
-                species_count=1,
-                clade_members=[getattr(leaf, "full_species_name", leaf.name)]
-            )
-            results.append(result)
-            matched_species.append(unmatched)
-            unmatched_species.remove(unmatched)
+        # Create result for this species
+        result = ETESearchResult(
+            node_name=full_species_name,
+            node_type="leaf",
+            distance_to_root=0.0,  # Default distance since we're not using tree
+            gene_count=len(genes_by_species.get(species_code, [])),
+            species_count=1,
+            clade_members=[full_species_name]
+        )
+        results.append(result)
     
-    # Final debug log
-    if unmatched_species:
-        logger.warning(f"Still unable to match species: {unmatched_species}")
-    logger.info(f"Found {len(results)} results for gene {gene_id}")
+    logger.info(f"Created {len(results)} results for gene {gene_id}")
+    
+    # Apply max_results limit if specified
+    if max_results is not None and len(results) > max_results:
+        results = results[:max_results]
     
     return results
 
-def search_tree_by_species(species_query: str, max_results: int = 50) -> List[ETESearchResult]:
+def search_tree_by_species(species_query: str, max_results: Optional[int] = None) -> List[ETESearchResult]:
     """Search for species by name (fuzzy matching)"""
     results = []
     tree = load_ete_tree()
@@ -381,12 +382,13 @@ def search_tree_by_species(species_query: str, max_results: int = 50) -> List[ET
             )
             results.append(result)
             
-            if len(results) >= max_results:
+            # Only check limit if max_results is specified
+            if max_results is not None and len(results) >= max_results:
                 break
     
     return results
 
-def search_tree_by_clade(clade_query: str, max_results: int = 50) -> List[ETESearchResult]:
+def search_tree_by_clade(clade_query: str, max_results: Optional[int] = None) -> List[ETESearchResult]:
     """Search for clades containing specific taxa"""
     results = []
     tree = load_ete_tree()
@@ -420,7 +422,8 @@ def search_tree_by_clade(clade_query: str, max_results: int = 50) -> List[ETESea
                 )
                 results.append(result)
                 
-                if len(results) >= max_results:
+                # Only check limit if max_results is specified
+                if max_results is not None and len(results) >= max_results:
                     break
     
     return results
@@ -657,6 +660,25 @@ async def ete_tree_search(request: ETESearchRequest):
             highlighted_nodes = [r.node_name for r in results[:5]]  # Highlight first 5 results
             tree_image = generate_tree_image(tree, highlighted_nodes)
         
+        # Calculate total orthologues and add orthogroup info for gene searches
+        total_orthologues = None
+        orthogroup_id = None
+        species_with_orthologues = None
+        
+        if request.search_type == "gene" and results:
+            total_orthologues = sum(r.gene_count or 0 for r in results)
+            species_with_orthologues = len(results)
+            
+            logger.info(f"ETE search calculation: {len(results)} species, total_orthologues = {total_orthologues}")
+            
+            # Try to get orthogroup ID
+            try:
+                orthogroup_id = find_gene_orthogroup(request.query, _gene_map, load_orthogroups_data())
+                logger.info(f"Found orthogroup_id: {orthogroup_id}")
+            except Exception as e:
+                logger.warning(f"Could not find orthogroup ID: {e}")
+                pass
+        
         return ETESearchResponse(
             success=True,
             query=request.query,
@@ -664,6 +686,9 @@ async def ete_tree_search(request: ETESearchRequest):
             results=results,
             total_results=len(results),
             tree_image=tree_image,
+            total_orthologues=total_orthologues,
+            orthogroup_id=orthogroup_id,
+            species_with_orthologues=species_with_orthologues,
             message=f"Found {len(results)} results"
         )
         

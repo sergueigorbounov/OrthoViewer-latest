@@ -3,25 +3,25 @@ import {
   Box,
   Card,
   CardContent,
+  Typography,
   TextField,
   Button,
-  Typography,
-  CircularProgress,
   Alert,
-  Chip,
-  Paper,
+  CircularProgress,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
-  IconButton,
+  Paper,
+  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
+  IconButton
 } from '@mui/material';
 
 interface ETESearchResponse {
@@ -40,6 +40,9 @@ interface ETESearchResponse {
   total_results: number;
   tree_image?: string;
   message?: string;
+  total_orthologues?: number;
+  orthogroup_id?: string;
+  species_with_orthologues?: number;
 }
 
 interface CacheStats {
@@ -66,6 +69,9 @@ interface CacheStats {
   };
 }
 
+// Get API base URL from environment
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
 const ETETreeSearch: React.FC = () => {
   const [geneId, setGeneId] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -80,7 +86,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('Checking ETE3 status');
 
-      const response = await fetch('http://localhost:8003/api/orthologue/ete-status', {
+      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-status`, {
         method: 'GET'
       });
       if (!response.ok) {
@@ -91,7 +97,7 @@ const ETETreeSearch: React.FC = () => {
       const data = await response.json();
       console.log('ETE status:', data);
 
-      if (!data.success || !data.available) {
+      if (!data.success || !data.ete_available) {
         setError(`ETE toolkit issue: ${data.message || 'ETE3 toolkit not available on the server'}`);
         return false;
       }
@@ -179,7 +185,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('🔍 ETE Search Request for gene:', geneId.trim());
       
-      const response = await fetch('http://localhost:8003/api/orthologue/ete-search', {
+      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,7 +193,6 @@ const ETETreeSearch: React.FC = () => {
         body: JSON.stringify({
           search_type: "gene",
           query: geneId.trim(),
-          max_results: 0,
           include_tree_image: true
         }),
       });
@@ -228,7 +233,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('🔍 Trying a simple species search instead');
 
-      const response = await fetch('http://localhost:8003/api/orthologue/ete-search', {
+      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -462,149 +467,136 @@ const ETETreeSearch: React.FC = () => {
 
       {/* Results */}
       {results && results.success && (
-        <Box>
-          {/* Results Summary */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Search Results
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Chip
-                  label={`Gene: ${results.query}`}
-                  color="primary"
-                  variant="outlined"
-                />
-                <Chip
-                  label={`Type: ${results.search_type}`}
-                  color="secondary"
-                  variant="outlined"
-                />
-                <Chip
-                  label={`${results.total_results} results`}
-                  color="info"
-                  variant="outlined"
-                />
-              </Box>
-              {results.message && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  {results.message}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Tree Image */}
-          {results.tree_image && (
-            <Card sx={{ mb: 3, overflow: 'hidden' }}>
-              <CardContent sx={{ p: 0 }}>
-                <Typography variant="h6" gutterBottom sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1, 
-                  p: 3, 
-                  pb: 2,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  m: 0
-                }}>
-                  🧬 Phylogenetic Tree Visualization
-                </Typography>
-                <Box sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  p: 2,
-                  background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                  minHeight: '400px'
-                }}>
-                  <Box sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 2,
-                    maxWidth: '100%',
-                    overflow: 'hidden'
-                  }}>
-                    <img
-                      src={results.tree_image.startsWith('data:') ? results.tree_image : `data:image/png;base64,${results.tree_image}`}
-                      alt="Phylogenetic Tree"
-                      style={{ 
-                        maxWidth: '100%', 
-                        maxHeight: '700px',
-                        borderRadius: '12px',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-                        border: '3px solid white'
-                      }}
-                      onError={(e) => {
-                        console.log('Image failed to load:', e);
-                        console.log('Base64 data length:', results.tree_image?.length);
-                        console.log('First 100 chars:', results.tree_image?.substring(0, 100));
-                      }}
-                    />
-                    <Typography variant="caption" sx={{ 
-                      color: '#666', 
-                      fontStyle: 'italic',
-                      textAlign: 'center',
-                      maxWidth: '600px'
-                    }}>
-                      🌿 Interactive phylogenetic tree showing evolutionary relationships. 
-                      Highlighted species contain orthologous genes to your query.
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Results Table */}
+        <Box sx={{ mt: 4 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Search Results ({results.total_results})
+              <Typography variant="h6" component="h2" gutterBottom>
+                Search Results
               </Typography>
               
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Node Name</strong></TableCell>
-                      <TableCell><strong>Type</strong></TableCell>
-                      <TableCell align="center"><strong>Distance to Root</strong></TableCell>
-                      <TableCell align="center"><strong>Species Count</strong></TableCell>
-                      <TableCell align="center"><strong>Gene Count</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {results.results.map((result, index) => (
-                      <TableRow key={index} hover>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                            {result.node_name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={result.node_type}
-                            size="small"
-                            color={result.node_type === 'leaf' ? 'success' : 'primary'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          {result.distance_to_root?.toFixed(4) || 'N/A'}
-                        </TableCell>
-                        <TableCell align="center">
-                          {result.species_count || 'N/A'}
-                        </TableCell>
-                        <TableCell align="center">
-                          {result.gene_count || 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              {/* Summary Information */}
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Query
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {results.query}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Search Type
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {results.search_type}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Species Found
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {results.total_results}
+                    </Typography>
+                  </Box>
+                  {results.search_type === 'gene' && results.total_orthologues && (
+                    <Box>
+                      <Typography variant="body2" color="textSecondary">
+                        Total Orthologues
+                      </Typography>
+                      <Typography variant="body1" fontWeight="bold" color="primary">
+                        {results.total_orthologues.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+                
+                {results.search_type === 'gene' && results.orthogroup_id && (
+                  <>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        Orthogroup ID
+                      </Typography>
+                      <Typography variant="body1" fontWeight="bold">
+                        {results.orthogroup_id}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
+                      <Typography variant="body1" color="success.contrastText">
+                        🧬 Found {results.total_orthologues?.toLocaleString()} orthologous genes across {results.species_with_orthologues} species in orthogroup {results.orthogroup_id}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
+              </Box>
+
+              {/* Tree Image */}
+              {results.tree_image && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Phylogenetic Tree
+                  </Typography>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <img 
+                      src={results.tree_image.startsWith('data:image') ? results.tree_image : `data:image/png;base64,${results.tree_image}`}
+                      alt="Phylogenetic tree"
+                      style={{ maxWidth: '100%', height: 'auto' }}
+                    />
+                  </Box>
+                </Box>
+              )}
+
+              {/* Search Results Table */}
+              {results.results && results.results.length > 0 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    {results.search_type === 'gene' ? 
+                      `Individual Orthologous Genes (${results.results.reduce((total, result) => total + (result.gene_count || 0), 0).toLocaleString()} total genes across ${results.results.length} species)` : 
+                      `Species Details (${results.results.length} species)`
+                    }
+                  </Typography>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>
+                            {results.search_type === 'gene' ? 'Gene ID & Species' : 'Species'}
+                          </TableCell>
+                          <TableCell align="right">Type</TableCell>
+                          <TableCell align="right">Gene Count</TableCell>
+                          {results.search_type !== 'gene' && (
+                            <TableCell align="right">Species Count</TableCell>
+                          )}
+                          <TableCell align="right">Distance to Root</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {results.results.map((result, index) => (
+                          <TableRow key={index}>
+                            <TableCell component="th" scope="row">
+                              {result.node_name}
+                            </TableCell>
+                            <TableCell align="right">
+                              <Chip 
+                                label={result.node_type} 
+                                size="small" 
+                                color={result.node_type === 'gene' ? 'success' : result.node_type === 'leaf' ? 'primary' : 'secondary'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">{result.gene_count || 0}</TableCell>
+                            {results.search_type !== 'gene' && (
+                              <TableCell align="right">{result.species_count || 0}</TableCell>
+                            )}
+                            <TableCell align="right">{result.distance_to_root.toFixed(4)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Box>
