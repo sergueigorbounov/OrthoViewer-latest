@@ -12,5 +12,11 @@ export default defineConfig({
         secure: false,
       }
     }
+  },
+  optimizeDeps: {
+    include: ['@emotion/react', '@emotion/styled', '@mui/material', '@mui/icons-material']
+  },
+  resolve: {
+    dedupe: ['@emotion/react', '@emotion/styled']
   }
 })

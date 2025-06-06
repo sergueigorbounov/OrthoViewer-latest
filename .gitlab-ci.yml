@@ -1,0 +1,99 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  ROCKY_HOST: "10.0.0.213"
+  ROCKY_USER: "rocky"
+  PROJECT_DIR: "/home/rocky/orthoviewer"
+
+# Test stage
+test:
+  stage: test
+  image: python:3.9
+  before_script:
+    - cd backend
+    - pip install -r requirements.txt
+  script:
+    - pytest tests/ --cov=app
+  only:
+    - main
+    - develop
+
+# Build stage
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker info
+  script:
+    - echo "Building images for deployment..."
+    - docker build -t orthoviewer-frontend ./frontend-vite
+    - docker build -t orthoviewer-backend ./backend
+  only:
+    - main
+
+# Deploy to Rocky
+deploy_rocky:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client git curl
+    - eval $(ssh-agent -s)
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - echo "🚀 Deploying OrthoViewer to Rocky server..."
+    
+    # Test SSH connection first
+    - ssh -o ConnectTimeout=10 $ROCKY_USER@$ROCKY_HOST "whoami && echo 'SSH connection successful'"
+    
+    # Create project directory on rocky
+    - ssh $ROCKY_USER@$ROCKY_HOST "mkdir -p $PROJECT_DIR"
+    
+    # Clone/update repository on rocky  
+    - ssh $ROCKY_USER@$ROCKY_HOST "
+        cd $PROJECT_DIR && 
+        if [ ! -d '.git' ]; then 
+          git clone $CI_REPOSITORY_URL . ; 
+        else 
+          git fetch origin && git reset --hard origin/main ; 
+        fi"
+    
+    # Run deployment script
+    - ssh $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && chmod +x deploy-rocky.sh && ./deploy-rocky.sh"
+    
+    # Verify deployment
+    - ssh $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080 && echo '✅ Deployment successful!'"
+    
+  after_script:
+    - echo "🎉 Rocky deployment completed!"
+    - echo "🌐 Access at: ssh -L 8080:localhost:8080 rocky@10.0.0.213"
+  only:
+    - main
+  when: manual  # Require manual trigger for deployment
+
+# Health check job
+health_check:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client curl
+    - eval $(ssh-agent -s)
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+  script:
+    - echo "🔍 Checking Rocky deployment health..."
+    - ssh $ROCKY_USER@$ROCKY_HOST "docker-compose -f $PROJECT_DIR/docker-compose.rocky.yml ps"
+    - ssh $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080/health || echo 'Health check failed'"
+  only:
+    - main
+  when: manual 

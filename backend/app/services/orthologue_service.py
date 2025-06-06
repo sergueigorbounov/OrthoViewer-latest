@@ -48,8 +48,10 @@ class OrthologueService:
             # Get all genes in the orthogroup
             start_time = time.time()
             genes_by_species = self.orthogroups_repo.get_orthogroup_genes(orthogroup_id)
+            
             get_genes_time = time.time() - start_time
             logger.info(f"Time to get genes: {get_genes_time:.2f} seconds")
+            
             logger.info(f"Found {sum(len(genes) for genes in genes_by_species.values())} genes in {len(genes_by_species)} species")
             
             # Process results
@@ -73,6 +75,7 @@ class OrthologueService:
                 # Add to counts
                 counts_by_species.append(OrthoSpeciesCount(
                     species_name=species_name,
+                    species_id=species_id,
                     count=len(genes)
                 ))
                 

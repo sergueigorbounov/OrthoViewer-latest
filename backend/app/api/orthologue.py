@@ -300,6 +300,13 @@ def search_tree_by_gene(gene_id: str, max_results: Optional[int] = None) -> List
     ortho_data = load_orthogroups_data()
     species_mapping = load_species_mapping()
     
+    # Load the ETE tree to calculate proper distances
+    try:
+        tree = load_ete_tree()
+    except Exception as e:
+        logger.warning(f"Could not load ETE tree for distance calculation: {e}")
+        tree = None
+    
     # First try to find the orthogroup containing this gene
     orthogroup_id = find_gene_orthogroup(gene_id, _gene_map, ortho_data)
     logger.info(f"Searching for gene {gene_id}, found in orthogroup: {orthogroup_id}")
@@ -331,16 +338,39 @@ def search_tree_by_gene(gene_id: str, max_results: Optional[int] = None) -> List
     logger.info(f"Found gene {gene_id} in species: {species_with_gene}")
     logger.info(f"Total genes found: {sum(len(genes) for genes in genes_by_species.values())}")
     
-    # Instead of trying to match to tree, just create results for all species
+    # Create results for all species with proper distance calculation
     for species_code in species_with_gene:
         # Get full species name from mapping
         full_species_name = get_species_full_name_enhanced(species_code, species_mapping)
+        
+        # Calculate distance to root if tree is available
+        distance_to_root = 0.0  # Default fallback
+        if tree is not None:
+            # Try to find the species in the tree by code
+            matching_leaf = None
+            if species_code in _leaf_node_cache:
+                matching_leaf = _leaf_node_cache[species_code]
+            else:
+                # Try to find by searching leaf names
+                for leaf in tree.get_leaves():
+                    leaf_name = leaf.name.strip().strip('"\'')
+                    if (leaf_name == species_code or 
+                        leaf_name.lower() == species_code.lower() or
+                        species_code.lower() in leaf_name.lower()):
+                        matching_leaf = leaf
+                        break
+            
+            if matching_leaf is not None:
+                distance_to_root = matching_leaf.get_distance(tree)
+                logger.debug(f"Found tree distance for {species_code}: {distance_to_root}")
+            else:
+                logger.debug(f"Could not find {species_code} in tree, using default distance")
         
         # Create result for this species
         result = ETESearchResult(
             node_name=full_species_name,
             node_type="leaf",
-            distance_to_root=0.0,  # Default distance since we're not using tree
+            distance_to_root=distance_to_root,
             gene_count=len(genes_by_species.get(species_code, [])),
             species_count=1,
             clade_members=[full_species_name]

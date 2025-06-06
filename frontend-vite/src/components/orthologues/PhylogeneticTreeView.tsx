@@ -898,22 +898,23 @@ const D3TreeImplementation: React.FC<{
       .data(root.descendants())
       .enter()
       .append('g')
-      .attr('class', 'node')
-      .attr('transform', (d: any) => {
-        if (useRadialLayout) {
-          // For radial layout, all nodes (both leaves and internal) should be
-          // positioned at their natural evolutionary position: (radius, angle)
-          // This creates a clean, consistent appearance where the tree structure
-          // is clearly visible without artificial "shoulder" positioning
-          const x = d.y * Math.sin(d.x);
-          const y = -d.y * Math.cos(d.x);
-          return `translate(${x},${y})`;
-        } else {
-          return `translate(${d.y},${d.x})`;
-        }
-      })
-      .style('cursor', 'pointer')
-      .style('opacity', 1);
+      .attr('class', 'node');
+
+    nodes.attr('transform', (d: any) => {
+      if (useRadialLayout) {
+        // For radial layout, all nodes (both leaves and internal) should be
+        // positioned at their natural evolutionary position: (radius, angle)
+        // This creates a clean, consistent appearance where the tree structure
+        // is clearly visible without artificial "shoulder" positioning
+        const x = d.y * Math.sin(d.x);
+        const y = -d.y * Math.cos(d.x);
+        return `translate(${x},${y})`;
+      } else {
+        return `translate(${d.y},${d.x})`;
+      }
+    })
+    .style('cursor', 'pointer')
+    .style('opacity', 1);
 
     nodes.append('circle')
       .attr('r', (d: any) => {

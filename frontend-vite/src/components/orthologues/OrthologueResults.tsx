@@ -84,14 +84,13 @@ interface OrthologueResultsProps {
 }
 
 // Tree View wrapper component using the context
-const TreeViewWrapper: React.FC<{ newickData: string, speciesCounts: any[] }> = ({ newickData, speciesCounts }) => {
-  const { selectedSpecies, setSelectedSpecies } = useSpeciesSelection();
+const TreeViewWrapper: React.FC<{ newickData: string, speciesCounts: any[], selectedSpecies?: string | null }> = ({ newickData, speciesCounts, selectedSpecies }) => {
+  const { setSelectedSpecies } = useSpeciesSelection();
   const [treeData, setTreeData] = useState<boolean>(false);
 
-  const handleTreeSpeciesSelected = useCallback((speciesName: string | null) => {
-    console.log("Species selected from tree:", speciesName);
-    setSelectedSpecies(speciesName);
-  }, [setSelectedSpecies]);
+  const handleTreeSpeciesSelected = (species: string | null) => {
+    setSelectedSpecies(species);
+  };
 
   return (
     <PhylogeneticTreeView 
@@ -263,7 +262,7 @@ const TreeTabContent: React.FC<{
           <TreeViewWrapper 
             newickData={results.newick_tree}
             speciesCounts={results.counts_by_species}
-            key={`tree-view-${activeTab}-${selectedSpecies || 'none'}`}
+            selectedSpecies={selectedSpecies}
           />
         ) : (
           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

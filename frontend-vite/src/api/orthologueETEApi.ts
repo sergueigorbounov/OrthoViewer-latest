@@ -10,7 +10,6 @@ export const searchOrthologuesETE = async (geneId: string): Promise<SearchResult
       body: JSON.stringify({
         search_type: 'gene',
         query: geneId,
-        max_results: 50,
         include_tree_image: true
       }),
     });

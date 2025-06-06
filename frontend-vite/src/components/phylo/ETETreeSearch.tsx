@@ -152,8 +152,8 @@ const ETETreeSearch: React.FC = () => {
       // });
       
       // For now, just simulate success
-      await loadCacheStats(); // Refresh stats after warming
-      setError(null);
+          await loadCacheStats(); // Refresh stats after warming
+          setError(null);
       console.log('Cache warming not implemented in backend');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -532,12 +532,12 @@ const ETETreeSearch: React.FC = () => {
                 )}
               </Box>
 
-              {/* Tree Image */}
-              {results.tree_image && (
+          {/* Tree Image */}
+          {results.tree_image && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Phylogenetic Tree
-                  </Typography>
+                </Typography>
                   <Box sx={{ textAlign: 'center' }}>
                     <img 
                       src={results.tree_image.startsWith('data:image') ? results.tree_image : `data:image/png;base64,${results.tree_image}`}
@@ -546,7 +546,7 @@ const ETETreeSearch: React.FC = () => {
                     />
                   </Box>
                 </Box>
-              )}
+          )}
 
               {/* Search Results Table */}
               {results.results && results.results.length > 0 && (
@@ -556,11 +556,11 @@ const ETETreeSearch: React.FC = () => {
                       `Individual Orthologous Genes (${results.results.reduce((total, result) => total + (result.gene_count || 0), 0).toLocaleString()} total genes across ${results.results.length} species)` : 
                       `Species Details (${results.results.length} species)`
                     }
-                  </Typography>
+              </Typography>
                   <TableContainer component={Paper}>
                     <Table size="small">
-                      <TableHead>
-                        <TableRow>
+                  <TableHead>
+                    <TableRow>
                           <TableCell>
                             {results.search_type === 'gene' ? 'Gene ID & Species' : 'Species'}
                           </TableCell>
@@ -570,31 +570,31 @@ const ETETreeSearch: React.FC = () => {
                             <TableCell align="right">Species Count</TableCell>
                           )}
                           <TableCell align="right">Distance to Root</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {results.results.map((result, index) => (
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {results.results.map((result, index) => (
                           <TableRow key={index}>
                             <TableCell component="th" scope="row">
-                              {result.node_name}
-                            </TableCell>
+                            {result.node_name}
+                        </TableCell>
                             <TableCell align="right">
-                              <Chip 
-                                label={result.node_type} 
-                                size="small" 
+                          <Chip
+                            label={result.node_type}
+                            size="small"
                                 color={result.node_type === 'gene' ? 'success' : result.node_type === 'leaf' ? 'primary' : 'secondary'}
-                              />
-                            </TableCell>
+                          />
+                        </TableCell>
                             <TableCell align="right">{result.gene_count || 0}</TableCell>
                             {results.search_type !== 'gene' && (
                               <TableCell align="right">{result.species_count || 0}</TableCell>
                             )}
                             <TableCell align="right">{result.distance_to_root.toFixed(4)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
                 </Box>
               )}
             </CardContent>
