@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8003';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // User type definitions
 export interface User {
@@ -23,26 +23,26 @@ export interface UpdateUserDto {
 
 // API client functions
 export const fetchUsers = async (): Promise<User[]> => {
-  const response = await axios.get(`${API_BASE_URL}/api/users`);
+  const response = await axios.get(`${API_BASE_URL}/users`);
   return response.data;
 };
 
 export const fetchUser = async (username: string): Promise<User> => {
-  const response = await axios.get(`${API_BASE_URL}/api/users/${username}`);
+  const response = await axios.get(`${API_BASE_URL}/users/${username}`);
   return response.data;
 };
 
 export const createUser = async (userData: CreateUserDto): Promise<User> => {
-  const response = await axios.post(`${API_BASE_URL}/api/users`, userData);
+  const response = await axios.post(`${API_BASE_URL}/users`, userData);
   return response.data;
 };
 
 export const updateUser = async (username: string, userData: UpdateUserDto): Promise<User> => {
-  const response = await axios.patch(`${API_BASE_URL}/api/users/${username}`, userData);
+  const response = await axios.patch(`${API_BASE_URL}/users/${username}`, userData);
   return response.data;
 };
 
 export const deleteUser = async (userId: number): Promise<{ success: boolean }> => {
-  const response = await axios.delete(`${API_BASE_URL}/api/users/${userId}`);
+  const response = await axios.delete(`${API_BASE_URL}/users/${userId}`);
   return { success: true };
 };

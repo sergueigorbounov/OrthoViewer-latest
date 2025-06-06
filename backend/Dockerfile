@@ -10,17 +10,16 @@ COPY ./environment.yml .
 # Create conda environment
 RUN mamba env create -f environment.yml
 
-# Make RUN commands use the new environment
-SHELL ["conda", "run", "-n", "orthoviewer2", "/bin/bash", "-c"]
-
 # Copy application code
 COPY . .
 
-# Set environment variables
+# Set environment variables for headless operation
 ENV PYTHONUNBUFFERED=1
+ENV QT_QPA_PLATFORM=offscreen
+ENV DISPLAY=
 
 # Expose port
 EXPOSE 8002
 
-# Run the application
-CMD ["conda", "run", "--no-capture-output", "-n", "orthoviewer2", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+# Run the application with proper conda activation
+CMD ["conda", "run", "--no-capture-output", "-n", "orthoviewer2", "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]

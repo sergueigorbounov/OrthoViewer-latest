@@ -70,7 +70,7 @@ interface CacheStats {
 }
 
 // Get API base URL from environment
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '/api';
 
 const ETETreeSearch: React.FC = () => {
   const [geneId, setGeneId] = useState<string>('');
@@ -86,7 +86,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('Checking ETE3 status');
 
-      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-status`, {
+      const response = await fetch(`${API_BASE_URL}/orthologue/ete-status`, {
         method: 'GET'
       });
       if (!response.ok) {
@@ -147,9 +147,6 @@ const ETETreeSearch: React.FC = () => {
     setCacheWarming(true);
     try {
       // Cache warm endpoint doesn't exist in the backend, so just skip this for now  
-      // const response = await fetch('http://localhost:8003/api/orthologue/cache/warm', {
-      //   method: 'POST'
-      // });
       
       // For now, just simulate success
           await loadCacheStats(); // Refresh stats after warming
@@ -185,7 +182,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('🔍 ETE Search Request for gene:', geneId.trim());
       
-      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-search`, {
+      const response = await fetch(`${API_BASE_URL}/orthologue/ete-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,7 +230,7 @@ const ETETreeSearch: React.FC = () => {
     try {
       console.log('🔍 Trying a simple species search instead');
 
-      const response = await fetch(`${API_BASE_URL}/api/orthologue/ete-search`, {
+      const response = await fetch(`${API_BASE_URL}/orthologue/ete-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

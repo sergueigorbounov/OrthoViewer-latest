@@ -4,27 +4,27 @@ channels:
   - defaults
 dependencies:
   # Core Python
-  - python=3.9
+  - python=3.10
   
   # Web Framework & API
-  - fastapi>=0.68.0
-  - uvicorn>=0.15.0
-  - pydantic>=1.8.0
-  - python-multipart>=0.0.5
+  - fastapi
+  - uvicorn
+  - pandas
+  - numpy
+  - requests
+  - python-dotenv
   
   # Data Processing & Scientific Libraries
   - pandas
   - numpy
   - ete3
+  - biopython
   
   # Monitoring & Performance
   - prometheus_client>=0.16.0
   - psutil>=5.9.0
   
   # Development & Testing
-  - pytest
-  - pytest-cov
-  - pytest-asyncio
   - mypy
   - flake8
   - black

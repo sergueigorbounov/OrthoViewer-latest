@@ -16,7 +16,7 @@ module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8003',
+      target: 'http://localhost:8002',
       changeOrigin: true,
       pathRewrite: { '^/api': '' }, // Remove /api prefix when forwarding to backend
       onProxyReq: (proxyReq, req, res) => {

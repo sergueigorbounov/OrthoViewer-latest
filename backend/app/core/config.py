@@ -9,8 +9,8 @@ class Settings:
     """Application settings"""
     
     def __init__(self):
-        # Data paths
-        self.BASE_DIR = "/home/sgorbounov/Documents/orthoviewer2-clean_backup_20250528_134020"
+        # Data paths - use container paths, not host paths
+        self.BASE_DIR = "/app"
         self.DATA_DIR = os.path.join(self.BASE_DIR, "data/orthofinder")
         self.TREE_FILE = os.path.join(self.DATA_DIR, "SpeciesTree_nameSp_completeGenome110124.tree")
         self.ORTHOGROUPS_FILE = os.path.join(self.DATA_DIR, "Orthogroups_clean_121124.txt")

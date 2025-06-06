@@ -1,8 +1,8 @@
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 
-// Use environment variable or default to port 8003
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8003';
+// Use relative path for production, environment variable for development
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

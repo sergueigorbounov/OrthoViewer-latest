@@ -1,4 +1,4 @@
-const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8003';
+const apiUrl = import.meta.env.VITE_BACKEND_URL || '/api';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = `${apiUrl}${endpoint}`;

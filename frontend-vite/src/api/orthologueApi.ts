@@ -16,7 +16,7 @@ export interface OrthologueInfo {
 
 export const searchOrthologues = async (geneId: string): Promise<SearchResults> => {
   try {
-    const response = await apiCall('/api/orthologue/search', {
+    const response = await apiCall('/orthologue/search', {
       method: 'POST',
       body: JSON.stringify({ gene_id: geneId }),
     });
@@ -29,7 +29,7 @@ export const searchOrthologues = async (geneId: string): Promise<SearchResults> 
 
 export const getOrthologueTree = async (): Promise<{ success: boolean; newick: string }> => {
   try {
-    const response = await apiCall('/api/orthologue/tree');
+    const response = await apiCall('/orthologue/tree');
     return response;
   } catch (error) {
     console.error('Error fetching tree:', error);
