@@ -5,13 +5,13 @@ FROM condaforge/mambaforge:latest
 WORKDIR /app
 
 # Copy environment file
-COPY ../environment.yml .
+COPY ./environment.yml .
 
 # Create conda environment
 RUN mamba env create -f environment.yml
 
 # Make RUN commands use the new environment
-SHELL ["conda", "run", "-n", "orthoviewer", "/bin/bash", "-c"]
+SHELL ["conda", "run", "-n", "orthoviewer2", "/bin/bash", "-c"]
 
 # Copy application code
 COPY . .
@@ -20,7 +20,7 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8002
 
 # Run the application
-CMD ["conda", "run", "--no-capture-output", "-n", "orthoviewer", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["conda", "run", "--no-capture-output", "-n", "orthoviewer2", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
