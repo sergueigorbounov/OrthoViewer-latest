@@ -367,15 +367,15 @@ def search_tree_by_gene(gene_id: str, max_results: Optional[int] = None) -> List
                 logger.debug(f"Could not find {species_code} in tree, using default distance")
         
         # Create result for this species
-        result = ETESearchResult(
+            result = ETESearchResult(
             node_name=full_species_name,
-            node_type="leaf",
+                node_type="leaf",
             distance_to_root=distance_to_root,
             gene_count=len(genes_by_species.get(species_code, [])),
-            species_count=1,
+                species_count=1,
             clade_members=[full_species_name]
-        )
-        results.append(result)
+            )
+            results.append(result)
     
     logger.info(f"Created {len(results)} results for gene {gene_id}")
     
