@@ -212,9 +212,10 @@ def add_dev_cors(app):
 EOF
       
       # Start with uvicorn
-      uvicorn app.fastapi_main:app --host 0.0.0.0 --port $BACKEND_PORT --reload &
+      echo_info "Starting backend on http://localhost:$BACKEND_PORT"
+      uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --reload &
       BACKEND_PID=$!
-      echo -e "${GREEN}Backend started with PID: $BACKEND_PID${NC}"
+      echo_success "Backend started with PID: $BACKEND_PID"
       
       # Wait for backend to be ready
       echo -e "${CYAN}Waiting for backend to be ready...${NC}"

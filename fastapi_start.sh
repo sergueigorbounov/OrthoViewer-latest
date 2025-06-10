@@ -56,8 +56,9 @@ fi
 
 # Start backend server
 echo -e "${GREEN}Starting FastAPI backend server on port 8002...${NC}"
-cd backend
-uvicorn app.fastapi_main:app --host 0.0.0.0 --port 8002 --reload &
+cd backend || exit_with_error "Failed to change to backend directory"
+echo_info "Starting backend on port $BACKEND_PORT..."
+uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload &
 
 # Wait for backend to start
 echo -e "${YELLOW}Waiting for backend to start...${NC}"

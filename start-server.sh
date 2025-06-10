@@ -42,5 +42,11 @@ python -c "import fastapi, uvicorn, sqlalchemy" || {
 cd backend
 
 # Start the server
-echo -e "${GREEN}Starting FastAPI server on http://localhost:8000${NC}"
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 
+echo "🚀 Starting FastAPI backend server..."
+echo "   Environment: $ENV_NAME" 
+echo "   Port: 8002"
+echo "   URL: http://localhost:8002"
+echo ""
+
+# Start the server  
+uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload 
