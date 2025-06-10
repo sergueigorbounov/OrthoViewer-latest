@@ -1,41 +1,45 @@
+# GitLab CI configuration using conda instead of pip
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  ROCKY_HOST: "10.0.0.213"
+  ROCKY_USER: "rocky"
+  PROJECT_DIR: "/home/rocky/orthoviewer"
+
 stages:
   - test
   - build
   - deploy
 
-variables:
-  ROCKY_HOST: "10.0.0.213"
-  ROCKY_USER: "rocky"
-  PROJECT_DIR: "/home/rocky/orthoviewer"
-
-# Test stage
-test:
+# Backend tests using conda
+test_backend:
   stage: test
-  image: python:3.9
+  image: condaforge/mambaforge:latest
   before_script:
-    - cd backend
-    - pip install -r requirements.txt
+    - conda env create -f environment.yml
+    - source activate orthoviewer2
   script:
-    - pytest tests/ --cov=app
-  only:
-    - main
-    - develop
+    - cd backend
+    - conda run -n orthoviewer2 pytest tests/ --cov=app --cov-report=xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.xml
 
-# Build stage (only test build, don't actually build for deploy)
+# Build Docker images
 build:
   stage: build
   image: docker:latest
   services:
     - docker:dind
-  before_script:
-    - docker info
   script:
-    - echo "Testing Docker build process..."
-    - docker build -t orthoviewer-frontend-test ./frontend-vite
-    - docker build -t orthoviewer-backend-test ./backend
-    - echo "✅ Build test successful"
+    - docker build -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA ./backend
+    - docker build -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA ./frontend-vite
   only:
     - main
+    - develop
 
 # Deploy to Rocky VM - Updated for Jira Compliance
 deploy_rocky:

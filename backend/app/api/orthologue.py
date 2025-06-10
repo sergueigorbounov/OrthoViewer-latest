@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Path, Query
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import os
 import json
 import pandas as pd
@@ -23,6 +23,14 @@ try:
     ETE_AVAILABLE = True
 except ImportError as e:
     ETE_AVAILABLE = False
+    # Create dummy Tree class for type hints when ETE3 is not available
+    Tree = None
+
+# Type imports
+if ETE_AVAILABLE:
+    TreeType = Tree
+else:
+    TreeType = Union[None, object]  # Fallback type when ETE3 not available
 
 # Create router
 router = APIRouter(
@@ -86,7 +94,8 @@ def load_orthogroups_data():
                 
             logger.info(f"Loading orthogroups data from {orthogroups_file}")
             # Use appropriate separator and optimize pandas read
-            sep = '\t' if orthogroups_file.endswith('.tsv') or orthogroups_file.endswith('.txt') else ','
+            # The orthogroups files are actually tab-separated, even if they have .csv extension
+            sep = '\t'  # Always use tab separator for orthogroups files
             _orthogroups_data = pd.read_csv(
                 orthogroups_file,
                 sep=sep,
@@ -272,10 +281,13 @@ def load_species_tree():
 # ETE3 TOOLKIT FUNCTIONS
 # =============================================================================
 
-def load_ete_tree() -> Tree:
+def load_ete_tree() -> TreeType:
     """Load the ETE tree from file"""
     global _ete_tree
     global _leaf_node_cache
+    
+    if not ETE_AVAILABLE:
+        raise ImportError("ETE3 toolkit not available")
     
     if _ete_tree is None:
         try:
@@ -497,8 +509,12 @@ def find_common_ancestor_search(species_list: List[str]) -> List[ETESearchResult
     
     return results
 
-def generate_tree_image(tree: Tree, highlighted_nodes: List[str] = None) -> str:
+def generate_tree_image(tree: TreeType, highlighted_nodes: List[str] = None) -> str:
     """Generate tree visualization with ETE and return as base64 string"""
+    if not ETE_AVAILABLE:
+        logger.error("ETE3 not available for tree image generation")
+        return None
+        
     try:
         # Create tree style
         ts = TreeStyle()

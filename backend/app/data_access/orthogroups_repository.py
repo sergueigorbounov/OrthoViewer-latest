@@ -141,7 +141,7 @@ class OrthogroupsRepository:
         orthogroup_row = self._data[self._data[self._data.columns[0]] == orthogroup_id]
         
         if orthogroup_row.empty:
-        return {}
+            return {}
         
         # Extract genes by species
         genes_by_species = {}
@@ -160,7 +160,7 @@ class OrthogroupsRepository:
             self.load_orthogroups_data()
         
         if self._data is None or self._data.empty:
-        return []
+            return []
         
         # Return all columns except the first one (orthogroup ID)
         return self._data.columns[1:].tolist()

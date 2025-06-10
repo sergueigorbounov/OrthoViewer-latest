@@ -83,9 +83,18 @@ else
 fi
 
 # 5. Reinstall ETE3 to ensure proper installation
-echo "Reinstalling ETE3..."
-source ~/Documents/orthoviewer/miniforge/envs/bio-semantic-viz/bin/activate
-pip install --force-reinstall ete3==3.1.3
+echo "Fixing ETE3 installation with specific version..."
+# Use conda to install ete3 instead of pip
+if command -v conda &> /dev/null; then
+    # Try conda first
+    conda install -c conda-forge ete3=3.1.3 -y || {
+        echo "Conda install failed, trying pip as fallback..."
+        pip install --force-reinstall ete3==3.1.3
+    }
+else
+    # Fallback to pip if conda not available
+    pip install --force-reinstall ete3==3.1.3
+fi
 
 # 6. Create a basic frontend package.json
 cat > frontend/package.json << 'EOF'

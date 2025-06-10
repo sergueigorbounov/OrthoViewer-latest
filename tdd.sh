@@ -130,9 +130,20 @@ setup_conda_env() {
     fi
     
     source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    pip install ete3 pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
+    # Prefer conda if available, otherwise use pip
+    if command -v conda &> /dev/null; then
+        echo -e "${CYAN}Installing packages with conda...${NC}"
+        conda install -c conda-forge pip fastapi uvicorn sqlalchemy pytest pytest-cov black flake8 mypy websockets -y || {
+            echo -e "${YELLOW}Some packages not available in conda, using pip fallback...${NC}"
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install ete3 pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
+        }
+    else
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install ete3 pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
+    fi
   else
     echo -e "${RED}Neither conda nor python3 found. Please install miniconda.${NC}"
     exit 1

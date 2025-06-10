@@ -248,14 +248,49 @@ if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
         }
         success "Backend dependencies ready in conda environment"
     else
-        warning "Installing required packages with pip..."
-        cd backend
-        if [ -f "requirements.txt" ]; then
-            $PYTHON_CMD -m pip install -r requirements.txt
+        warning "Installing required packages with conda (creating basic environment)..."
+        
+        # Try to create a minimal conda environment if it doesn't exist
+        if [ "$CONDA_AVAILABLE" = true ]; then
+            info "Creating minimal conda environment for OrthoViewer..."
+            
+            # Create a temporary environment.yml
+            cat > temp_environment.yml << 'EOF'
+name: orthoviewer2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - pip
+EOF
+            
+            conda env create -f temp_environment.yml --force 2>/dev/null || {
+                warning "Failed to create conda environment, using pip fallback..."
+                cd backend
+                if [ -f "requirements.txt" ]; then
+                    $PYTHON_CMD -m pip install -r requirements.txt
+                else
+                    $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+                fi
+                cd ..
+            }
+            
+            # Clean up temporary file
+            rm -f temp_environment.yml
         else
-            $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+            # Fallback to pip if conda not available
+            cd backend
+            if [ -f "requirements.txt" ]; then
+                $PYTHON_CMD -m pip install -r requirements.txt
+            else
+                $PYTHON_CMD -m pip install fastapi uvicorn python-multipart
+            fi
+            cd ..
         fi
-        cd ..
     fi
     
     # Re-check with conda environment
@@ -268,9 +303,9 @@ if ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
         fi
     elif ! $PYTHON_CMD -c "import fastapi, uvicorn" 2>/dev/null; then
         error "Failed to install backend dependencies. Try:"
-        echo "  conda env update -f environment.yml"
+        echo "  conda env create -f environment.yml && conda activate orthoviewer2"
         echo "  OR"
-        echo "  pip install fastapi uvicorn python-multipart"
+        echo "  cd backend && pip install fastapi uvicorn python-multipart"
         exit 1
     fi
 else
@@ -399,8 +434,8 @@ cd frontend-vite
 
 # Create or update environment files
 info "Configuring frontend environment..."
-echo "VITE_BACKEND_URL=http://localhost:$BACKEND_PORT" > .env
-echo "VITE_API_BASE_URL=http://localhost:$BACKEND_PORT" >> .env
+echo "VITE_BACKEND_URL=/api" > .env
+echo "NODE_ENV=development" >> .env
 success "Created/updated .env file with backend URL"
 
 # Start the Vite development server

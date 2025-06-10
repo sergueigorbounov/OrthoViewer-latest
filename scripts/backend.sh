@@ -1,41 +1,39 @@
 #!/bin/bash
+
+# Backend startup script using conda
+# Starts the OrthoViewer FastAPI backend
+
 set -e
 
-# Navigate to project root
-cd "$(dirname "$0")/.."
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Check if environment.yml exists in project root
-if [ -f "environment.yml" ]; then
-    # If conda environment doesn't exist, create it
-    if ! conda env list | grep -q "orthoviewer2"; then
-        echo "Creating conda environment from environment.yml..."
-        conda env create -f environment.yml
-    else
-        echo "Updating conda environment..."
-        echo "Installing Python dependencies..."
-        conda env update -f environment.yml || {
-            echo "Conda env update failed, trying pip fallback..."
-            cd backend
-            pip install -r requirements.txt
-            cd ..
-        }
-    fi
-    
-    # Activate conda environment
-    source "$(conda info --base)/etc/profile.d/conda.sh"
-    conda activate orthoviewer2
-else
-    # If environment.yml doesn't exist, use pip
-    echo "No conda environment.yml found, using pip..."
-    cd backend
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
+echo -e "${GREEN}Starting OrthoViewer backend with conda...${NC}"
+
+# Check if conda environment exists
+ENV_NAME="orthoviewer2"
+if ! conda env list | grep -q "$ENV_NAME"; then
+    echo -e "${RED}conda environment '$ENV_NAME' not found.${NC}"
+    echo -e "${YELLOW}Please run: cd backend && conda env create -f environment.yml${NC}"
+    exit 1
 fi
 
-# Navigate to backend for running the server
+# Activate conda environment
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate "$ENV_NAME"
+
+# Navigate to backend directory
 cd backend
 
-# Run FastAPI with uvicorn
-echo "Starting FastAPI server..."
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
+# Verify dependencies are installed
+python -c "import fastapi, uvicorn" || {
+    echo -e "${RED}Missing dependencies. Please check environment.yml${NC}"
+    exit 1
+}
+
+# Start the backend server
+echo -e "${GREEN}Starting FastAPI server...${NC}"
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

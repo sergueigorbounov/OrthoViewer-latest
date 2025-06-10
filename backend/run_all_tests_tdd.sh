@@ -50,9 +50,22 @@ else
     echo -e "${YELLOW}⚠️  Conda not found, using system Python${NC}"
 fi
 
-# Install test dependencies
-echo "Installing/updating test dependencies..."
-pip install pytest pytest-cov pytest-asyncio psutil aiohttp > /dev/null 2>&1
+# Install test dependencies if not in environment.yml
+echo -e "${BLUE}Setting up test dependencies...${NC}"
+if command -v conda &> /dev/null && conda env list | grep -q "orthoviewer2"; then
+    # Use conda environment
+    source $(conda info --base)/etc/profile.d/conda.sh
+    conda activate orthoviewer2
+    
+    # Install additional test packages if needed
+    conda install -c conda-forge pytest pytest-cov pytest-asyncio psutil aiohttp -y > /dev/null 2>&1 || {
+        echo "Some packages not available in conda, using pip in conda environment..."
+        pip install pytest pytest-cov pytest-asyncio psutil aiohttp > /dev/null 2>&1
+    }
+else
+    # Fallback to pip if conda not available
+    pip install pytest pytest-cov pytest-asyncio psutil aiohttp > /dev/null 2>&1
+fi
 echo -e "${GREEN}✅ Test dependencies ready${NC}"
 echo ""
 

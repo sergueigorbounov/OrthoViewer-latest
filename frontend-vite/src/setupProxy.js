@@ -5,9 +5,9 @@ module.exports = function(app) {
   
   // Try different target URLs in order of preference
   const targets = [
-    'http://localhost:8002',
-    'http://127.0.0.1:8002',
-    'http://0.0.0.0:8002'
+    'http://localhost:8003',
+    'http://127.0.0.1:8003',
+    'http://0.0.0.0:8003'
   ];
   
   // Use the first target by default
@@ -16,12 +16,11 @@ module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8002',
+      target: 'http://localhost:8003',
       changeOrigin: true,
-      pathRewrite: { '^/api': '' }, // Remove /api prefix when forwarding to backend
       onProxyReq: (proxyReq, req, res) => {
         // Log request being proxied
-        console.log(`Proxying ${req.method} request from ${req.headers.host} to: ${proxyTarget}${req.path.replace(/^\/api/, '')}`);
+        console.log(`Proxying ${req.method} request from ${req.headers.host} to: ${proxyTarget}${req.path}`);
       },
       onProxyRes: (proxyRes, req, res) => {
         console.log(`Received ${proxyRes.statusCode} response for: ${req.path}`);
