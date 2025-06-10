@@ -1,12 +1,18 @@
-# OrthoViewer
+# OrthoViewer 🧬
 
 **A Modern Platform for Biological Data Visualization and Phylogenetic Analysis**
 
 OrthoViewer is a cutting-edge web-based platform designed for the visualization and analysis of biological data, with particular emphasis on orthogroups and phylogenetic relationships. Built with modern technologies and scientific rigor, it provides researchers with robust analytical capabilities for comparative genomics studies.
 
+![Status](https://img.shields.io/badge/status-active%20development-brightgreen)
+![Conda](https://img.shields.io/badge/conda-compliant-brightgreen)
+![Docker](https://img.shields.io/badge/docker-ready-blue)
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![React](https://img.shields.io/badge/react-18+-blue)
+
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 - **Python 3.10+** (conda/miniforge recommended)
@@ -16,16 +22,16 @@ OrthoViewer is a cutting-edge web-based platform designed for the visualization 
 ### One-Command Startup
 ```bash
 git clone <repository-url>
-cd orthoviewer
+cd OrthoViewer-latest
 ./dev.sh
 ```
 
 That's it! This script will:
-- Install all dependencies (conda-first approach)
-- Set up environments automatically
-- Start backend on http://localhost:8003
-- Launch frontend on http://localhost:5173
-- Enable hot-reload for development
+- ✅ Install all dependencies (conda-first approach)
+- ✅ Set up environments automatically
+- ✅ Start backend on http://localhost:8003
+- ✅ Launch frontend on http://localhost:5173
+- ✅ Enable hot-reload for development
 
 ### Access Your Application
 - **Frontend**: http://localhost:5173
@@ -34,7 +40,7 @@ That's it! This script will:
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 orthoviewer/
@@ -52,24 +58,21 @@ orthoviewer/
 
 ---
 
-## Development Workflow
+## 🛠️ Development Workflow
 
-### Daily Development
-```bash
-./dev.sh                        # Full development environment
-./tdd.sh                        # Test-driven development with live testing
-```
+### Quick Commands
+| Command | Purpose |
+|---------|---------|
+| `./dev.sh` | 🚀 Start full development environment |
+| `./tdd.sh` | 🧪 Test-driven development with live testing |
+| `./start-server.sh` | 🌐 Production server startup |
+| `./fastapi_start.sh` | ⚡ FastAPI with frontend |
+| `./setup-docker.sh` | 🐳 Complete Docker setup |
 
 ### Individual Services
 ```bash
 ./scripts/backend.sh            # Backend only
 ./scripts/frontend.sh           # Frontend only
-```
-
-### Production Mode
-```bash
-./start-server.sh               # Production server
-./fastapi_start.sh              # FastAPI with frontend
 ```
 
 ### Testing Suite
@@ -89,7 +92,7 @@ orthoviewer/
 
 ---
 
-## Technical Architecture
+## 🏗️ Technical Architecture
 
 ### System Overview
 OrthoViewer employs a modern 3-layer architecture designed for scalability and maintainability:
@@ -177,14 +180,14 @@ backend/app/
 ### Performance Targets
 | Operation | Target | Status |
 |-----------|--------|--------|
-| Gene search | < 50ms | Achieved |
-| Species lookup | < 10ms | Achieved |
-| Orthogroup retrieval | < 100ms | Achieved |
-| Dashboard load | < 200ms | Achieved |
+| Gene search | < 50ms | ✅ Achieved |
+| Species lookup | < 10ms | ✅ Achieved |
+| Orthogroup retrieval | < 100ms | ✅ Achieved |
+| Dashboard load | < 200ms | ✅ Achieved |
 
 ---
 
-## Key Features
+## 🔬 Key Features
 
 ### Biological Data Analysis
 - **Orthogroup Management**: Comprehensive orthogroup visualization and analysis
@@ -198,25 +201,89 @@ backend/app/
 - **Real-time Updates**: Live data updates and collaboration
 - **Accessibility**: WCAG-compliant interface design
 
-### Scientific Rigor
-- **Test-Driven Development**: Comprehensive testing at all levels
-- **Reproducible Results**: Conda environments for consistency
-- **Performance Monitoring**: Built-in metrics and health checks
-- **Documentation**: Auto-generated API docs and user guides
+---
+
+## 🐍 Conda Environment Management
+
+### ✅ **FULLY COMPLIANT** with INRAE Conda Recommendations
+
+This project is **100% compliant** with INRAE conda recommendations as specified in:
+https://open-science.inrae.fr/fr/offre-service/fiches-pratiques-et-recommandations/quelles-alternatives-aux-fonctionnalites-payantes-danaconda
+
+### Quick Setup
+```bash
+# Create conda environment
+conda env create -f environment.yml
+
+# Activate environment
+conda activate orthoviewer2
+
+# Start development
+./dev.sh
+```
+
+### Environment Management
+```bash
+# Update environment
+conda env update -f environment.yml
+
+# List environments
+conda env list
+
+# Verify dependencies
+conda list
+```
+
+### Compliance Benefits
+- ✅ Uses conda-forge channel primarily
+- ✅ Uses bioconda for bioinformatics packages  
+- ✅ No commercial Anaconda dependencies
+- ✅ Environment specification in `environment.yml`
+- ✅ Docker containers use conda base images
+- ✅ CI/CD pipelines use conda
 
 ---
 
-## Deployment Options
+## 🧪 Testing Strategy
 
-### Local Development
+### Comprehensive Test Suite
+- **Unit Tests**: Test individual components and functions
+- **Integration Tests**: Test service interactions
+- **Performance Tests**: Validate response times and resource usage
+- **End-to-End Tests**: Full user workflow testing
+
+### Test Commands
 ```bash
-./dev.sh                       # Quick local startup
+# All tests
+./scripts/test-all.sh
+
+# Specific test types
+./scripts/test-unit.sh           # Unit tests
+./scripts/test-integration.sh    # Integration tests  
+./scripts/test-performance.sh    # Performance tests
+./scripts/test-e2e.sh           # End-to-end tests
 ```
 
-### Docker Deployment
+### Test-Driven Development
 ```bash
-./setup-docker.sh             # Full Docker setup
-./scripts/docker-start.sh     # Start containers
+./tdd.sh                        # TDD workflow with live testing
+```
+
+---
+
+## 🐳 Docker & Deployment
+
+### Docker Development
+```bash
+# Complete Docker setup
+./setup-docker.sh
+
+# Start Docker environment
+./scripts/docker-start.sh
+
+# Individual containers
+./scripts/docker-backend.sh     # Backend container only
+./scripts/docker-frontend.sh    # Frontend container only
 ```
 
 ### Production Deployment
@@ -227,189 +294,203 @@ backend/app/
 ./scripts/deployment/auto-deploy-rocky.sh
 
 # Manual deployment
-ssh rocky@10.0.0.213
-git clone <repo-url>
-./deploy-rocky.sh
-```
+./scripts/deployment/deploy-rocky.sh
 
-#### GitLab CI/CD Integration
-- Automatic testing on commit
-- Manual deployment triggers
-- Health verification
-- Performance monitoring
-
-**Access deployed app:**
-```bash
-# SSH tunnel (recommended)
+# Access via SSH tunnel
 ssh -L 8080:localhost:8080 rocky@10.0.0.213
-# Then visit: http://localhost:8080
+# Then open: http://localhost:8080
 ```
+
+#### CI/CD Pipeline
+- **Automated Testing**: Code validated before deployment
+- **One-Click Deployment**: Deploy with single button click
+- **Health Monitoring**: Automatic verification
+- **Secure**: SSH keys managed by GitLab CI/CD
 
 ---
 
-## Test-Driven Development
+## 📚 Scripts Reference
 
-### TDD Philosophy
-OrthoViewer employs rigorous Test-Driven Development adapted for scientific software:
+### Core Development Scripts
+| Script | Purpose |
+|--------|---------|
+| `./dev.sh` | 🚀 Main development environment |
+| `./tdd.sh` | 🧪 Test-driven development |
+| `./start-server.sh` | 🌐 Production server |
+| `./fastapi_start.sh` | ⚡ FastAPI + frontend |
+| `./setup-docker.sh` | 🐳 Docker setup |
 
-1. **Red**: Write failing tests for new functionality
-2. **Green**: Implement minimal code to pass tests  
-3. **Refactor**: Improve code while maintaining tests
-4. **Repeat**: Continue cycle for reliable development
+### Organized Script Directory
+```
+scripts/
+├── install_dependencies.sh     # Install all dependencies
+├── setup_database.sh          # Database setup
+├── backend.sh                 # Backend only
+├── frontend.sh                # Frontend only
+├── test-*.sh                  # Testing scripts
+├── docker-*.sh                # Docker scripts
+├── deployment/                # Deployment scripts
+│   └── *.sh                  # Various deployment options
+└── utilities/                 # Utility scripts
+    └── fix_biosemantic_issues.sh
+```
 
-### Testing Strategy
+### Common Use Cases
 ```bash
-# Interactive TDD workflow
-./tdd.sh                       # Live testing environment
+# Start developing
+./dev.sh
 
-# Comprehensive test suites
-./scripts/test-all.sh          # All tests
-./scripts/test-unit.sh         # Unit tests
-./scripts/test-integration.sh  # Integration tests
-./scripts/test-performance.sh  # Performance validation
+# Run tests while developing
+./tdd.sh
+
+# Deploy to Rocky server
+./scripts/deployment/auto-deploy-rocky.sh
+
+# Run only backend
+./scripts/backend.sh
+
+# Run everything in Docker
+./setup-docker.sh
+
+# Fix dependencies
+./scripts/install_dependencies.sh
+./scripts/utilities/fix_biosemantic_issues.sh
 ```
-
-### Testing Coverage
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: Full-stack testing
-- **Performance Tests**: Response time validation
-- **End-to-End Tests**: User workflow verification
 
 ---
 
-## Environment Management
+## 🔧 Environment Configuration
 
-### Conda-First Approach
-OrthoViewer uses conda for reproducible scientific environments:
+### Primary Environment Files
+- `environment.yml` - Main conda environment
+- `backend/environment.yml` - Backend-specific environment
+- `frontend-vite/package.json` - Frontend dependencies
 
-```bash
-# Create environment
-conda env create -f environment.yml
-
-# Activate environment  
-conda activate orthoviewer2
-
-# Update environment
-conda env update -f environment.yml
-```
-
-### Automatic Fallbacks
-All scripts intelligently fall back to pip if conda is unavailable:
-- **Primary**: Conda for scientific packages
-- **Fallback**: Pip when conda unavailable
-- **Mixed**: Pip within conda for missing packages
-
-### Environment Files
-- **`environment.yml`**: Main project environment
-- **`backend/environment.yml`**: Backend-specific packages
-- **`requirements.txt`**: Pip fallback dependencies
+### Environment Variables
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CONDA_ENV_NAME` | `orthoviewer2` | Conda environment name |
+| `BACKEND_PORT` | `8003` | Backend server port |
+| `FRONTEND_PORT` | `5173` | Frontend dev server port |
 
 ---
 
-## Documentation & API
-
-### Interactive Documentation
-- **API Docs**: http://localhost:8003/docs (Swagger UI)
-- **ReDoc**: http://localhost:8003/redoc (Alternative API docs)
-- **Health Endpoints**: Comprehensive system monitoring
-
-### Script Documentation
-All scripts include built-in help:
-```bash
-./dev.sh --help               # Development help
-./tdd.sh --help               # TDD workflow help
-./scripts/test-all.sh --help  # Testing help
-```
-
-### Quick Reference
-- **`SCRIPTS_REFERENCE.md`**: Quick script usage guide
-- **`scripts/README.md`**: Detailed script documentation
-- **`backend/ARCHITECTURE.md`**: Technical architecture details
-
----
-
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-**Environment Setup**
+#### Conda Environment Issues
 ```bash
-# Conda not found
-curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh | bash
-
-# Environment conflicts
+# Remove and recreate environment
 conda env remove -n orthoviewer2
 conda env create -f environment.yml
+
+# Clear conda cache
+conda clean --all
 ```
 
-**Port Conflicts**
-```bash
-# Scripts automatically handle port conflicts
-# Or manually kill processes:
-sudo lsof -i :8003 | grep LISTEN | awk '{print $2}' | xargs kill -9
-```
+#### Port Conflicts
+Scripts automatically kill processes on conflicting ports
 
-**Dependencies Issues**
+#### Missing Dependencies
 ```bash
-# Fix scientific package conflicts
-./scripts/utilities/fix_biosemantic_issues.sh
-
-# Reinstall dependencies
 ./scripts/install_dependencies.sh
 ```
 
-### Getting Help
-1. Check logs in `logs/` directory
-2. Run scripts with `--help` flag
-3. Verify conda environment: `conda list`
-4. Check Docker status: `docker ps`
+#### ETE3/BioSemantic Issues
+```bash
+./scripts/utilities/fix_biosemantic_issues.sh
+```
+
+#### Docker Issues
+```bash
+./setup-docker.sh
+```
+
+### Install Conda (if not available)
+```bash
+# Download and install Miniforge (recommended)
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+bash Miniforge3-Linux-x86_64.sh
+```
 
 ---
 
-## Development Guidelines
+## 📈 Development Guidelines
 
-### Code Quality
-- **Type Safety**: TypeScript frontend, Pydantic backend
-- **Code Formatting**: Automated with Prettier and Black
-- **Linting**: ESLint for frontend, Flake8 for backend
-- **Testing**: Minimum 80% code coverage
+### API Layer Best Practices
+```python
+# ✅ Good: Thin controllers
+@router.get("/species/{species_id}")
+async def get_species(species_id: str, service: SpeciesService = Depends()):
+    return await service.get_species_by_id(species_id)
+```
 
-### Git Workflow
-- **Feature Branches**: All development in feature branches
-- **Pull Requests**: Required for main branch
-- **Automated Testing**: CI/CD runs all tests
-- **Code Review**: Peer review for all changes
+### Service Layer Best Practices
+```python
+# ✅ Good: Pure business logic
+class SpeciesService:
+    def __init__(self, repo: SpeciesRepository):
+        self.repo = repo
+    
+    async def get_species_stats(self, species_id: str) -> SpeciesStats:
+        species = await self.repo.get_by_id(species_id)
+        return self._calculate_stats(species)
+```
 
-### Performance Standards
-- **API Response**: < 100ms for most endpoints
-- **Frontend Load**: < 2s initial page load
-- **Memory Usage**: < 500MB backend container
-- **Database Queries**: < 10ms for cached data
-
----
-
-## Why OrthoViewer?
-
-### Modern & Fast
-- Lightning-fast Vite development
-- High-performance FastAPI backend
-- Hot-reload for instant feedback
-
-### Scientifically Rigorous  
-- Comprehensive test coverage
-- Reproducible conda environments
-- Validated biological algorithms
-
-### Developer Friendly
-- One-command startup
-- Comprehensive documentation
-- Containerized deployment
-
-### Production Ready
-- Security best practices
-- Performance monitoring
-- Automated CI/CD deployment
+### Repository Layer Best Practices
+```python
+# ✅ Good: Abstract data access
+class SpeciesRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, species_id: str) -> Species:
+        pass
+```
 
 ---
 
-**Ready to explore biological data like never before? Start with `./dev.sh` and dive in!**
+## 📊 Project Status & Compliance
+
+### ✅ Conda Compliance Status
+- **Status**: 🟢 **FULLY COMPLIANT** with INRAE recommendations
+- **Environment Management**: Standardized conda environments
+- **Dependencies**: All available through conda-forge and bioconda
+- **CI/CD**: Uses conda in all pipelines
+- **Docker**: Conda-based containers
+
+### 🚀 Deployment Status
+- **Development**: ✅ Ready with `./dev.sh`
+- **Testing**: ✅ Comprehensive test suite
+- **Docker**: ✅ Full containerization
+- **Production**: ✅ Rocky server deployment ready
+- **CI/CD**: ✅ GitLab automation configured
+
+---
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Setup environment**: `./dev.sh`
+4. **Run tests**: `./tdd.sh`
+5. **Commit changes**: `git commit -m 'Add amazing feature'`
+6. **Push to branch**: `git push origin feature/amazing-feature`
+7. **Open a Pull Request**
+
+---
+
+## 📄 License
+
+This project is part of the INRAE PEPR-BREIF WP2 initiative for biological data visualization and analysis.
+
+---
+
+## 🆘 Support
+
+- **Documentation**: Check individual script `--help` options
+- **Issues**: Report issues on the project repository
+- **INRAE Conda Guide**: https://open-science.inrae.fr/fr/offre-service/fiches-pratiques-et-recommandations/quelles-alternatives-aux-fonctionnalites-payantes-danaconda
+
+---
+
+**Happy Coding! 🧬✨**
