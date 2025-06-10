@@ -1,5 +1,10 @@
-# NOTE: For development, prefer using conda with ../environment.yml
-# This file is kept for Docker/CI compatibility
+# DEPRECATED: This file is kept for Docker/CI backward compatibility only
+# 
+# For conda compliance, use environment.yml instead:
+# conda env create -f environment.yml
+# conda activate orthoviewer2
+#
+# See: https://open-science.inrae.fr/fr/offre-service/fiches-pratiques-et-recommandations/quelles-alternatives-aux-fonctionnalites-payantes-danaconda
 
 fastapi>=0.68.0
 uvicorn>=0.15.0

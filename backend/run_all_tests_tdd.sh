@@ -40,34 +40,25 @@ print_section() {
 # Setup test environment
 print_section "🔧 Setting up test environment"
 
-# Activate conda environment
-if command -v conda &> /dev/null; then
-    echo "Activating orthoviewer conda environment..."
-    eval "$(conda shell.bash hook)"
-    conda activate orthoviewer
-    echo -e "${GREEN}✅ Conda environment activated${NC}"
+# Use conda only (no pip fallback for compliance)
+if command -v conda >/dev/null 2>&1; then
+    if conda env list | grep -q "orthoviewer2"; then
+        echo "✓ Using existing conda environment 'orthoviewer2'"
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+        # Update environment to ensure all dependencies are installed
+        conda env update -f environment.yml
+    else
+        echo "Creating conda environment 'orthoviewer2' from environment.yml..."
+        conda env create -f environment.yml
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+    fi
 else
-    echo -e "${YELLOW}⚠️  Conda not found, using system Python${NC}"
+    echo "❌ Conda not found. Please install conda/miniconda first."
+    echo "Visit: https://docs.conda.io/en/latest/miniconda.html"
+    exit 1
 fi
-
-# Install test dependencies if not in environment.yml
-echo -e "${BLUE}Setting up test dependencies...${NC}"
-if command -v conda &> /dev/null && conda env list | grep -q "orthoviewer2"; then
-    # Use conda environment
-    source $(conda info --base)/etc/profile.d/conda.sh
-    conda activate orthoviewer2
-    
-    # Install additional test packages if needed
-    conda install -c conda-forge pytest pytest-cov pytest-asyncio psutil aiohttp -y > /dev/null 2>&1 || {
-        echo "Some packages not available in conda, using pip in conda environment..."
-        pip install pytest pytest-cov pytest-asyncio psutil aiohttp > /dev/null 2>&1
-    }
-else
-    # Fallback to pip if conda not available
-    pip install pytest pytest-cov pytest-asyncio psutil aiohttp > /dev/null 2>&1
-fi
-echo -e "${GREEN}✅ Test dependencies ready${NC}"
-echo ""
 
 # Run tests
 print_section "🧪 Running TDD Test Suite"

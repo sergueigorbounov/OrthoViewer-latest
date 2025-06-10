@@ -24,37 +24,24 @@ fi
 # Test type selection
 TEST_TYPE=${1:-all}
 
-# Set up environment
-if [ -f "../environment.yml" ]; then
-  # Check if conda environment exists and activate it
-  ENV_NAME=$(grep "name:" ../environment.yml | cut -d' ' -f2)
-  if conda info --envs | grep -q "$ENV_NAME"; then
-    echo -e "${BLUE}Activating conda environment: $ENV_NAME${NC}"
-    eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
-  else
-    echo -e "${YELLOW}Creating conda environment from ../environment.yml...${NC}"
-    conda env create -f ../environment.yml
-    eval "$(conda shell.bash hook)" && conda activate "$ENV_NAME"
-  fi
+# Use conda only (no pip fallback for compliance)
+if command -v conda >/dev/null 2>&1; then
+    if conda env list | grep -q "orthoviewer2"; then
+        echo "✓ Using existing conda environment 'orthoviewer2'"
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+        # Update environment to ensure all dependencies are installed
+        conda env update -f environment.yml
+    else
+        echo "Creating conda environment 'orthoviewer2' from environment.yml..."
+        conda env create -f environment.yml
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+    fi
 else
-  # Use virtual environment
-  if [ ! -d ".venv" ]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
-    python -m venv .venv
-  fi
-  echo -e "${BLUE}Activating virtual environment...${NC}"
-  source .venv/bin/activate
-  
-  # Install requirements via pip fallback
-  echo -e "${BLUE}Installing requirements...${NC}"
-  if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-  fi
-  
-  # Install test requirements if they exist
-  if [ -f "requirements-test.txt" ]; then
-    pip install -r requirements-test.txt
-  fi
+    echo "❌ Conda not found. Please install conda/miniconda first."
+    echo "Visit: https://docs.conda.io/en/latest/miniconda.html"
+    exit 1
 fi
 
 # Run tests based on type

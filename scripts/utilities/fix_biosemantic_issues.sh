@@ -84,16 +84,14 @@ fi
 
 # 5. Reinstall ETE3 to ensure proper installation
 echo "Fixing ETE3 installation with specific version..."
-# Use conda to install ete3 instead of pip
-if command -v conda &> /dev/null; then
+# Use conda to install ete3 (conda-only for compliance)
+if command -v conda >/dev/null 2>&1; then
     # Try conda first
-    conda install -c conda-forge ete3=3.1.3 -y || {
-        echo "Conda install failed, trying pip as fallback..."
-        pip install --force-reinstall ete3==3.1.3
-    }
+    conda install -c conda-forge ete3=3.1.3 -y
 else
-    # Fallback to pip if conda not available
-    pip install --force-reinstall ete3==3.1.3
+    echo "❌ Conda not found. Please install conda/miniconda first."
+    echo "Visit: https://docs.conda.io/en/latest/miniconda.html"
+    exit 1
 fi
 
 # 6. Create a basic frontend package.json

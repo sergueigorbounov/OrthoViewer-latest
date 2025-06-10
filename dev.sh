@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "This script starts the OrthoViewer2 development environment with:"
       echo "  - Backend FastAPI server on port 8003"
-      echo "  - Frontend Vite development server on port 5173"
+      echo "  - Frontend Vite development server on port 3000"
       echo "  - API documentation at http://localhost:8003/docs"
       echo ""
       echo "Requirements:"
@@ -109,7 +109,7 @@ install_vite_deps() {
 
 # Define ports
 BACKEND_PORT=8003
-FRONTEND_PORT=5173
+FRONTEND_PORT=3000
 
 # Create logs directory
 mkdir -p logs
@@ -205,34 +205,22 @@ info "Cleaning up existing processes..."
 kill_port_process $BACKEND_PORT
 kill_port_process $FRONTEND_PORT
 
-# Check if conda is available
-CONDA_AVAILABLE=false
-if command -v conda &> /dev/null; then
-    CONDA_AVAILABLE=true
-    info "Conda is available: $(conda --version)"
-    
-    # Check for orthoviewer2 environment
+# Check if conda is available and orthoviewer2 environment exists
+if command -v conda >/dev/null 2>&1; then
     if conda env list | grep -q "orthoviewer2"; then
-        info "Activating orthoviewer2 environment"
+        echo "✓ Using existing conda environment 'orthoviewer2'"
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate orthoviewer2
-        success "Activated orthoviewer2 conda environment"
     else
-        warning "orthoviewer2 conda environment not found"
-        info "Creating orthoviewer2 environment from environment.yml..."
-        if [ -f "environment.yml" ]; then
-            conda env create -f environment.yml
-            source "$(conda info --base)/etc/profile.d/conda.sh"
-            conda activate orthoviewer2
-            success "Created and activated orthoviewer2 conda environment"
-        else
-            error "environment.yml not found. Cannot create environment."
-            exit 1
-        fi
+        echo "Creating conda environment 'orthoviewer2' from environment.yml..."
+        conda env create -f environment.yml
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
     fi
 else
-    warning "Conda not found, using system Python"
-    info "For better package management, consider installing Miniforge: https://github.com/conda-forge/miniforge"
+    echo "❌ Conda not found. Please install conda/miniconda first."
+    echo "Visit: https://docs.conda.io/en/latest/miniconda.html"
+    exit 1
 fi
 
 # Check backend dependencies
@@ -305,7 +293,7 @@ EOF
         error "Failed to install backend dependencies. Try:"
         echo "  conda env create -f environment.yml && conda activate orthoviewer2"
         echo "  OR"
-        echo "  cd backend && pip install fastapi uvicorn python-multipart"
+        echo "  cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8002"
         exit 1
     fi
 else

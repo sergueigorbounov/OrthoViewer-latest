@@ -1,3 +1,12 @@
+# DEPRECATED: This file is kept for backward compatibility only
+# 
+# For conda compliance, use environment.yml instead:
+# conda env create -f environment.yml
+# conda activate orthoviewer2
+#
+# See: https://open-science.inrae.fr/fr/offre-service/fiches-pratiques-et-recommandations/quelles-alternatives-aux-fonctionnalites-payantes-danaconda
+
+# Legacy pip dependencies (use conda environment.yml instead)
 # Flask dependencies
 Flask==2.2.3
 Flask-Cors==3.0.10

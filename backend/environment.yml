@@ -1,23 +1,24 @@
 name: orthoviewer2
 channels:
   - conda-forge
+  - bioconda
   - defaults
 dependencies:
   # Core Python
   - python=3.10
   
   # Web Framework & API
-  - fastapi
-  - uvicorn
-  - pandas
-  - numpy
+  - fastapi>=0.68.0
+  - uvicorn>=0.15.0
+  - pydantic>=1.8.0
+  - python-multipart>=0.0.5
   - requests
   - python-dotenv
   
   # Data Processing & Scientific Libraries
   - pandas
   - numpy
-  - ete3
+  - ete3=3.1.3
   - biopython
   
   # Monitoring & Performance
@@ -25,6 +26,9 @@ dependencies:
   - psutil>=5.9.0
   
   # Development & Testing
+  - pytest
+  - pytest-cov
+  - pytest-asyncio
   - mypy
   - flake8
   - black

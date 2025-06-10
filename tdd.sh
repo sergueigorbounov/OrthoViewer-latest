@@ -130,19 +130,25 @@ setup_conda_env() {
     fi
     
     source venv/bin/activate
-    # Prefer conda if available, otherwise use pip
-    if command -v conda &> /dev/null; then
+    # Use conda only (no pip fallback for compliance)
+    if command -v conda >/dev/null 2>&1; then
         echo -e "${CYAN}Installing packages with conda...${NC}"
-        conda install -c conda-forge pip fastapi uvicorn sqlalchemy pytest pytest-cov black flake8 mypy websockets -y || {
-            echo -e "${YELLOW}Some packages not available in conda, using pip fallback...${NC}"
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            pip install ete3 pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
-        }
+        if conda env list | grep -q "orthoviewer2"; then
+            echo "✓ Using existing conda environment 'orthoviewer2'"
+            source "$(conda info --base)/etc/profile.d/conda.sh"
+            conda activate orthoviewer2
+            # Update environment to ensure all dependencies are installed
+            conda env update -f environment.yml
+        else
+            echo "Creating conda environment 'orthoviewer2' from environment.yml..."
+            conda env create -f environment.yml
+            source "$(conda info --base)/etc/profile.d/conda.sh"
+            conda activate orthoviewer2
+        fi
     else
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install ete3 pytest pytest-cov black flake8 mypy uvicorn[standard] websockets
+        echo -e "${RED}❌ Conda not found. Please install conda/miniconda first.${NC}"
+        echo -e "${RED}Visit: https://docs.conda.io/en/latest/miniconda.html${NC}"
+        exit 1
     fi
   else
     echo -e "${RED}Neither conda nor python3 found. Please install miniconda.${NC}"

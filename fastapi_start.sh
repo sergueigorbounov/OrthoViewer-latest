@@ -34,44 +34,24 @@ fi
 # Create directories if they don't exist
 mkdir -p backend/app/uploads
 
-# Check for conda and orthoviewer2 environment
-if command -v conda &> /dev/null; then
-  echo -e "${GREEN}Activating conda environment...${NC}"
-  if conda env list | grep -q "orthoviewer2"; then
-    source "$(conda info --base)/etc/profile.d/conda.sh"
-    conda activate orthoviewer2
-    echo -e "${GREEN}Activated orthoviewer2 conda environment${NC}"
-  else
-    echo -e "${YELLOW}Creating orthoviewer2 environment...${NC}"
-    if [ -f "environment.yml" ]; then
-      conda env create -f environment.yml
-      source "$(conda info --base)/etc/profile.d/conda.sh"
-      conda activate orthoviewer2
-      echo -e "${GREEN}Created and activated orthoviewer2 conda environment${NC}"
+# Use conda only (no pip fallback for compliance)
+if command -v conda >/dev/null 2>&1; then
+    if conda env list | grep -q "orthoviewer2"; then
+        echo "✓ Using existing conda environment 'orthoviewer2'"
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
+        # Update environment to ensure all dependencies are installed
+        conda env update -f environment.yml
     else
-      echo -e "${RED}environment.yml not found. Cannot create conda environment.${NC}"
-      exit 1
+        echo "Creating conda environment 'orthoviewer2' from environment.yml..."
+        conda env create -f environment.yml
+        source "$(conda info --base)/etc/profile.d/conda.sh"
+        conda activate orthoviewer2
     fi
-  fi
 else
-  echo -e "${YELLOW}Conda not available, using system Python${NC}"
-  # Activate virtual environment if it exists
-  if [ -d "venv" ]; then
-    echo -e "${GREEN}Activating virtual environment...${NC}"
-    source venv/bin/activate
-  fi
-fi
-
-# Install/update requirements using conda
-if command -v conda &> /dev/null && conda env list | grep -q "orthoviewer2"; then
-  echo -e "${GREEN}Updating conda environment...${NC}"
-  conda env update -f environment.yml
-else
-  echo -e "${YELLOW}Conda not available, using pip as fallback...${NC}"
-  if [ -f "requirements.txt" ]; then
-    echo -e "${GREEN}Installing requirements...${NC}"
-    pip install -r requirements.txt
-  fi
+    echo "❌ Conda not found. Please install conda/miniconda first."
+    echo "Visit: https://docs.conda.io/en/latest/miniconda.html"
+    exit 1
 fi
 
 # Start backend server
