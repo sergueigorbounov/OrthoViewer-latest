@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
-from app.models.example import Example
+from app.models.example import Example, ExampleCreate
 
 router = APIRouter(prefix="/api/examples", tags=["examples"])
 
@@ -27,7 +27,7 @@ async def get_examples():
     return list(examples_db.values())
 
 @router.post("/", response_model=Example, status_code=status.HTTP_201_CREATED)
-async def create_example(example: Example):
+async def create_example(example: ExampleCreate):
     """Create a new example."""
     global next_id
     new_example = Example(id=next_id, name=example.name, value=example.value)

@@ -7,7 +7,7 @@ def test_root_endpoint(client):
     assert response.status_code == 200
     data = response.json()
     assert "message" in data
-    assert "BioSemanticViz" in data["message"]
+    assert "OrthoViewer2" in data["message"]
 
 def test_status_endpoint(client):
     """Test the status endpoint"""

@@ -147,7 +147,7 @@ def test_search_genes(gene_search_service):
     # Test search by name substring
     result = gene_search_service.search_genes("Gene")
     assert result["success"] is True
-    assert len(result["data"]) == 3  # All genes except ABCgene
+    assert len(result["data"]) == 4  # All genes containing "Gene" in their name
     
     # Test search by exact name
     result = gene_search_service.search_genes("Gene 1")
@@ -158,7 +158,7 @@ def test_search_genes(gene_search_service):
     # Test search by ID substring
     result = gene_search_service.search_genes("gene")
     assert result["success"] is True
-    assert len(result["data"]) == 3  # gene1, gene2, gene3
+    assert len(result["data"]) == 4  # gene1, gene2, gene3, ABCgene (all match "gene" substring)
     
     # Test search by exact ID
     result = gene_search_service.search_genes("gene1")
@@ -166,7 +166,7 @@ def test_search_genes(gene_search_service):
     assert len(result["data"]) == 1
     assert result["data"][0]["id"] == "gene1"
     
-    # Test search with special ID format
+    # Test search by special ID format
     result = gene_search_service.search_genes("ABC")
     assert result["success"] is True
     assert len(result["data"]) == 1

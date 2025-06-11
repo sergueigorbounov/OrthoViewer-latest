@@ -20,8 +20,76 @@ except ImportError:
     OrthogroupService = None
     def get_orthogroup_service():
         return None
-    def load_mock_data(filename):
-        return {}
+    def load_mock_data(filename: str) -> Dict[str, Any]:
+        """Load mock data with fallback for CI environments"""
+        import os
+        import json
+        try:
+            # Try multiple possible locations for mock data
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), "..", "..", "mock_data", filename),
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "mock_data", filename),
+                os.path.join("mock_data", filename),
+                filename
+            ]
+            
+            for file_path in possible_paths:
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        return json.load(f)
+            
+            # Fallback: return basic mock data for CI environments
+            if filename == "genes.json":
+                return {
+                    "genes": [
+                        {
+                            "id": "gene1",
+                            "name": "Gene 1", 
+                            "species_id": "sp1",
+                            "orthogroup_id": "OG0001",
+                            "go_terms": [
+                                {"id": "GO:0001", "name": "Term 1", "category": "Molecular Function"},
+                                {"id": "GO:0002", "name": "Term 2", "category": "Biological Process"}
+                            ]
+                        },
+                        {
+                            "id": "gene2",
+                            "name": "Gene 2", 
+                            "species_id": "sp1",
+                            "orthogroup_id": "OG0002",
+                            "go_terms": []
+                        },
+                        {
+                            "id": "gene3",
+                            "name": "Gene 3", 
+                            "species_id": "sp2",
+                            "orthogroup_id": "OG0001",
+                            "go_terms": [
+                                {"id": "GO:0003", "name": "Term 3", "category": "Cellular Component"}
+                            ]
+                        }
+                    ]
+                }
+            elif filename == "species.json":
+                return {
+                    "species": [
+                        {"id": "sp1", "name": "Species 1", "taxonomy": "Kingdom;Phylum;Class;Order;Family;Genus;Species"},
+                        {"id": "sp2", "name": "Species 2", "taxonomy": "Kingdom;Phylum;Class;Order;Family;Genus;Species"}
+                    ]
+                }
+            elif filename == "orthogroups.json":
+                return {
+                    "orthogroups": [
+                        {"id": "OG0001", "name": "Orthogroup 1", "species": ["sp1", "sp2"]},
+                        {"id": "OG0002", "name": "Orthogroup 2", "species": ["sp1"]}
+                    ]
+                }
+            
+            return {}
+            
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return {}
 
 # Import models
 try:

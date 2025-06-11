@@ -46,8 +46,8 @@ except ImportError as e:
     from fastapi import APIRouter
     health_router = APIRouter()
     species_router = APIRouter()
-    genes_router = APIRouter()
-    gene_router = APIRouter()
+    # genes_router = APIRouter()  # Don't override - let the import work
+    # gene_router = APIRouter()   # Don't override - let the import work
     orthogroups_router = APIRouter()
     orthogroup_router = APIRouter()
     dashboard_router = APIRouter()
