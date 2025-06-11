@@ -58,7 +58,7 @@ MOCK_GENE_DATA = {
 # Successful API calls
 def test_get_dashboard_stats_success():
     """Test successful retrieval of dashboard statistics."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.dashboard.load_mock_data') as mock_load:
         # Mock to return different data based on the filename
         def mock_load_side_effect(filename):
             if filename == "species.json":
@@ -96,7 +96,7 @@ def test_get_dashboard_stats_success():
 # Failed API calls
 def test_get_dashboard_stats_error():
     """Test handling of errors during dashboard statistics retrieval."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.dashboard.load_mock_data') as mock_load:
         mock_load.side_effect = Exception("Test error")
         response = client.get("/api/dashboard/stats")
         

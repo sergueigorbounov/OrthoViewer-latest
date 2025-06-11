@@ -19,6 +19,7 @@ class Species(BaseModel):
     name: str
     common_name: Optional[str] = None
     taxonomy_id: Optional[str] = None
+    taxonomy: Optional[str] = None  # Added for test compatibility
     description: Optional[str] = None
 
 class OrthoGroup(BaseModel):
@@ -26,6 +27,7 @@ class OrthoGroup(BaseModel):
     name: str
     species: List[str] = []
     genes: List[str] = []
+    gene_count: Optional[int] = None  # Added for test compatibility
     description: Optional[str] = None
 
 class Gene(BaseModel):
@@ -79,7 +81,7 @@ class SpeciesTreeNode(BaseModel):
     children: List[SpeciesTreeNodeRef] = []
 
 # Update the forward reference
-SpeciesTreeNode.update_forward_refs()
+SpeciesTreeNode.model_rebuild()
 
 # Response models
 class SpeciesResponse(BaseModel):

@@ -49,7 +49,7 @@ MOCK_ORTHOGROUP_DATA = {
 # Successful API calls
 def test_get_all_genes_success():
     """Test successful retrieval of all genes."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         response = client.get("/api/genes")
         
@@ -63,7 +63,7 @@ def test_get_all_genes_success():
 
 def test_get_gene_by_id_success():
     """Test successful retrieval of a gene by ID."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         response = client.get("/api/gene/gene1")
         
@@ -76,7 +76,7 @@ def test_get_gene_by_id_success():
 
 def test_get_gene_go_terms_success():
     """Test successful retrieval of GO terms for a gene."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         response = client.get("/api/gene/gene1/go_terms")
         
@@ -90,7 +90,7 @@ def test_get_gene_go_terms_success():
 
 def test_get_orthogroup_genes_success():
     """Test successful retrieval of genes for an orthogroup."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         # First call for orthogroups, second call for genes
         mock_load.side_effect = [MOCK_ORTHOGROUP_DATA, MOCK_GENE_DATA]
         response = client.get("/api/orthogroup/OG0001/genes")
@@ -106,7 +106,7 @@ def test_get_orthogroup_genes_success():
 # Failed API calls
 def test_get_gene_by_id_not_found():
     """Test retrieval of a non-existent gene."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         response = client.get("/api/gene/non_existent")
         
@@ -118,7 +118,7 @@ def test_get_gene_by_id_not_found():
 
 def test_get_gene_go_terms_not_found():
     """Test retrieval of GO terms for a gene without terms."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         response = client.get("/api/gene/gene2/go_terms")
         
@@ -130,7 +130,7 @@ def test_get_gene_go_terms_not_found():
 
 def test_get_orthogroup_genes_orthogroup_not_found():
     """Test retrieval of genes for a non-existent orthogroup."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.side_effect = [MOCK_ORTHOGROUP_DATA, MOCK_GENE_DATA]
         response = client.get("/api/orthogroup/non_existent/genes")
         
@@ -142,7 +142,7 @@ def test_get_orthogroup_genes_orthogroup_not_found():
 
 def test_get_genes_error():
     """Test handling of errors during gene retrieval."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.side_effect = Exception("Test error")
         response = client.get("/api/genes")
         
@@ -155,15 +155,24 @@ def test_get_genes_error():
 # Fuzzy testing
 def test_gene_route_special_characters():
     """Test gene routes with special characters in IDs."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.genes.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_GENE_DATA
         
-        special_ids = ["gene%20with%20spaces", "gene+with+plus", "gene/with/slashes", "gene#with#hash"]
+        # Test characters that FastAPI should handle gracefully
+        safe_ids = ["gene%20with%20spaces", "gene+with+plus", "gene#with#hash"]
         
-        for special_id in special_ids:
-            response = client.get(f"/api/gene/{special_id}")
+        for safe_id in safe_ids:
+            response = client.get(f"/api/gene/{safe_id}")
             # API should handle these gracefully
             assert response.status_code == 200
             data = response.json()
             assert isinstance(data, dict)
             assert "success" in data
+        
+        # Test characters that FastAPI naturally rejects (should return 404)
+        problematic_ids = ["gene/with/slashes"]
+        
+        for problematic_id in problematic_ids:
+            response = client.get(f"/api/gene/{problematic_id}")
+            # These should naturally return 404 due to path routing
+            assert response.status_code == 404

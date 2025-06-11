@@ -10,15 +10,18 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional, Dict, Any
 import logging
 
-# Import service layer (will be created)
+# Import service layer
 try:
     from app.services.analytics.dashboard_service import DashboardService
     from app.api.dependencies import get_dashboard_service
+    from app.main import load_mock_data
 except ImportError:
     # Temporary fallback for development
     DashboardService = None
     def get_dashboard_service():
         return None
+    def load_mock_data(filename):
+        return {}
 
 # Import models
 try:
@@ -83,54 +86,83 @@ async def get_dashboard_overview(
         logger.error(f"Error getting dashboard overview: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve dashboard data")
 
-@router.get("/stats", response_model=SystemStats)
+@router.get("/stats", response_model=Dict[str, Any])
 async def get_system_statistics(
     service: DashboardService = Depends(get_dashboard_service)
-) -> SystemStats:
+) -> Dict[str, Any]:
     """
     📈 Get detailed system statistics
     
     Performance target: < 100ms
     """
     try:
-        if service is None:
-            # Temporary mock data
-            return {
-                "species": {
-                    "total": 3,
-                    "by_type": {
-                        "model_organism": 1,
-                        "crop_plant": 2
-                    }
-                },
-                "genes": {
-                    "total": 87542,
-                    "avg_length": 1456,
-                    "by_species": {
-                        "arabidopsis": 27416,
-                        "rice": 35679,
-                        "maize": 24447
-                    }
-                },
-                "orthogroups": {
-                    "total": 18780,
-                    "single_copy": 12450,
-                    "multi_copy": 6330,
-                    "avg_conservation": 0.78
-                },
-                "data_quality": {
-                    "completeness": 0.95,
-                    "consistency": 0.98,
-                    "last_validation": "2024-01-15T08:00:00Z"
-                }
-            }
+        # Try to load mock data
+        species_data = load_mock_data("species.json")
+        orthogroup_data = load_mock_data("orthogroups.json")
+        gene_data = load_mock_data("genes.json")
         
-        stats = await service.get_system_statistics()
-        return stats
+        if species_data and orthogroup_data and gene_data:
+            # Calculate statistics from mock data
+            species_count = len(species_data.get("species", []))
+            orthogroup_count = len(orthogroup_data.get("orthogroups", []))
+            gene_count = len(gene_data.get("genes", []))
+            
+            # Calculate species distribution
+            species_distribution = {}
+            for gene in gene_data.get("genes", []):
+                species_id = gene.get("species_id")
+                if species_id:
+                    species_distribution[species_id] = species_distribution.get(species_id, 0) + 1
+            
+            # Calculate orthogroup connectivity
+            orthogroup_connectivity = {}
+            for orthogroup in orthogroup_data.get("orthogroups", []):
+                og_id = orthogroup.get("id")
+                if og_id:
+                    # Count genes in this orthogroup
+                    gene_count_in_og = len([g for g in gene_data.get("genes", []) if g.get("orthogroup_id") == og_id])
+                    orthogroup_connectivity[og_id] = gene_count_in_og
+            
+            # Calculate GO term distribution
+            go_term_distribution = {
+                "Molecular Function": 0,
+                "Biological Process": 0,
+                "Cellular Component": 0
+            }
+            
+            for gene in gene_data.get("genes", []):
+                for go_term in gene.get("go_terms", []):
+                    category = go_term.get("category")
+                    if category in go_term_distribution:
+                        go_term_distribution[category] += 1
+            
+            dashboard_stats = {
+                "speciesCount": species_count,
+                "orthogroupCount": orthogroup_count,
+                "geneCount": gene_count,
+                "speciesDistribution": species_distribution,
+                "orthogroupConnectivity": orthogroup_connectivity,
+                "goTermDistribution": go_term_distribution
+            }
+            
+            return {
+                "success": True,
+                "data": dashboard_stats
+            }
+        else:
+            return {
+                "success": False,
+                "data": {},
+                "message": "Failed to generate dashboard stats"
+            }
         
     except Exception as e:
         logger.error(f"Error getting system statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve system statistics")
+        return {
+            "success": False,
+            "data": {},
+            "message": "Failed to generate dashboard stats"
+        }
 
 @router.get("/species-comparison", response_model=Dict[str, Any])
 async def get_species_comparison(

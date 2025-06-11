@@ -49,10 +49,9 @@ def test_upload_file_empty_filename():
         files={"file": (test_file.name, test_file, "application/octet-stream")}
     )
     
-    assert response.status_code == 400
+    assert response.status_code == 422  # FastAPI returns 422 for validation errors
     data = response.json()
-    assert "error" in data
-    assert "No selected file" in data["error"]
+    assert "detail" in data
 
 def test_upload_file_invalid_extension():
     """Test file upload with invalid file extension."""

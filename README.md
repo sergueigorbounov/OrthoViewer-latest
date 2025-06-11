@@ -301,7 +301,106 @@ ssh -L 8080:localhost:8080 rocky@10.0.0.213
 # Then open: http://localhost:8080
 ```
 
-#### CI/CD Pipeline
+#### Manual Rocky VM Deployment (Alternative)
+
+If you prefer to deploy manually without the CI/CD pipeline, you can use this process:
+
+#### Quick One-Liner Deployment
+```bash
+# Complete manual deployment in one command chain
+tar -czf orthoviewer-deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.pytest_cache' --exclude='logs' --exclude='orthoviewer-deploy.tar.gz' . && scp orthoviewer-deploy.tar.gz rocky@10.0.0.213:~/ && ssh rocky@10.0.0.213 "mkdir -p orthoviewer && cd orthoviewer && tar -xzf ~/orthoviewer-deploy.tar.gz --strip-components=1 && docker compose -f docker-compose.rocky.yml down --remove-orphans && docker compose -f docker-compose.rocky.yml up -d && rm ~/orthoviewer-deploy.tar.gz" && rm orthoviewer-deploy.tar.gz && echo "🚀 Deployment complete! Access at http://10.0.0.213:8080"
+```
+
+#### Prerequisites
+- SSH access to Rocky VM: `rocky@10.0.0.213`
+- Docker and Docker Compose installed on the target VM
+- Git repository with the latest code
+
+#### Manual Deployment Steps
+
+1. **Create and Upload Deployment Package**
+```bash
+# Create deployment package (from local development machine)
+tar -czf orthoviewer-deploy.tar.gz \
+    --exclude='.git' \
+    --exclude='node_modules' \
+    --exclude='__pycache__' \
+    --exclude='.pytest_cache' \
+    --exclude='logs' \
+    --exclude='orthoviewer-deploy.tar.gz' \
+    .
+
+# Upload to Rocky VM
+scp orthoviewer-deploy.tar.gz rocky@10.0.0.213:~/
+```
+
+2. **Deploy on Rocky VM**
+```bash
+# Connect to Rocky VM and deploy
+ssh rocky@10.0.0.213
+
+# Create directory and extract
+mkdir -p orthoviewer
+cd orthoviewer
+tar -xzf ~/orthoviewer-deploy.tar.gz --strip-components=1
+
+# Deploy with Docker Compose
+docker compose -f docker-compose.rocky.yml down --remove-orphans
+docker compose -f docker-compose.rocky.yml pull
+docker compose -f docker-compose.rocky.yml up -d
+
+# Verify deployment
+docker compose -f docker-compose.rocky.yml ps
+```
+
+3. **Access the Application**
+- **Main Application**: http://10.0.0.213:8080 (Nginx proxy)
+- **Frontend Direct**: http://10.0.0.213:8001 (React frontend)
+- **Backend API**: http://10.0.0.213:8002 (FastAPI backend)
+
+4. **Cleanup**
+```bash
+# Remove deployment package
+rm ~/orthoviewer-deploy.tar.gz
+```
+
+#### Container Architecture on Rocky VM
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Rocky VM (10.0.0.213)                 │
+├─────────────────────────────────────────────────────────────┤
+│  Docker Network: orthoviewer_orthoviewer-net               │
+│                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐│
+│  │ orthoviewer-    │  │ orthoviewer-    │  │ orthoviewer- ││
+│  │ nginx           │  │ frontend        │  │ backend      ││
+│  │                 │  │                 │  │              ││
+│  │ nginx:alpine    │  │ Custom React    │  │ Custom       ││
+│  │ Port: 8080      │  │ Port: 8001      │  │ FastAPI      ││
+│  │                 │  │                 │  │ Port: 8002   ││
+│  └─────────────────┘  └─────────────────┘  └──────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Health Monitoring
+```bash
+# Check container status
+docker compose -f docker-compose.rocky.yml ps
+
+# View logs
+docker compose -f docker-compose.rocky.yml logs --tail=20
+
+# Test application accessibility
+curl -s -o /dev/null -w '%{http_code}' http://localhost:8080
+```
+
+#### Configuration Files Used
+- `docker-compose.rocky.yml`: Rocky-specific Docker Compose configuration
+- `nginx/nginx.conf`: Nginx reverse proxy configuration
+- `backend/Dockerfile`: Backend container build instructions
+- `frontend-vite/Dockerfile`: Frontend container build instructions
+
+#### CI/CD Pipeline (Automated Alternative)
 - **Automated Testing**: Code validated before deployment
 - **One-Click Deployment**: Deploy with single button click
 - **Health Monitoring**: Automatic verification

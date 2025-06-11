@@ -28,11 +28,18 @@ logger = logging.getLogger(__name__)
 try:
     from app.api.routes.health import router as health_router
     from app.api.routes.species import router as species_router
-    from app.api.routes.genes import router as genes_router
-    from app.api.routes.orthogroups import router as orthogroups_router
+    from app.api.routes.genes import router as genes_router, gene_router
+    from app.api.routes.orthogroups import router as orthogroups_router, orthogroup_router
     from app.api.routes.dashboard import router as dashboard_router
+    from app.api.routes.examples import router as examples_router
+    from app.api.routes.upload import router as upload_router
+    from app.api.routes.users import router as users_router
     # Add orthologue router
     from app.api.orthologue import router as orthologue_router
+    # Import load_mock_data for test compatibility
+    from app.api.biological_routes import load_mock_data
+    # Make it available at module level for tests
+    __all__ = ['app', 'load_mock_data']
 except ImportError as e:
     logging.warning(f"Some routes not available: {e}")
     # Create minimal routers for missing routes
@@ -40,9 +47,19 @@ except ImportError as e:
     health_router = APIRouter()
     species_router = APIRouter()
     genes_router = APIRouter()
+    gene_router = APIRouter()
     orthogroups_router = APIRouter()
+    orthogroup_router = APIRouter()
     dashboard_router = APIRouter()
     orthologue_router = APIRouter()
+    examples_router = APIRouter()
+    upload_router = APIRouter()
+    users_router = APIRouter()
+    
+    # Create a mock load_mock_data function for fallback
+    def load_mock_data(filename: str):
+        return {}
+    __all__ = ['app', 'load_mock_data']
 
 # ==========================================
 # FASTAPI APPLICATION SETUP
@@ -82,11 +99,22 @@ app.include_router(health_router)
 # Core biological data routes
 app.include_router(species_router)
 app.include_router(genes_router) 
+app.include_router(gene_router)  # Singular gene routes for test compatibility
 app.include_router(orthogroups_router)
+app.include_router(orthogroup_router)
 app.include_router(dashboard_router)
 
 # Add orthologue routes
 app.include_router(orthologue_router)
+
+# Add examples routes
+app.include_router(examples_router)
+
+# Add upload routes
+app.include_router(upload_router)
+
+# Add users routes
+app.include_router(users_router)
 
 # ==========================================
 # CORE ENDPOINTS
@@ -115,6 +143,11 @@ async def root():
 @app.get("/status")
 async def status():
     """⚡ System status endpoint"""
+    return {"status": "running", "version": "2.0.0", "architecture": "3-layer"}
+
+@app.get("/api/status")
+async def api_status():
+    """⚡ API status endpoint"""
     return {"status": "running", "version": "2.0.0", "architecture": "3-layer"}
 
 @app.get("/examples")

@@ -80,11 +80,11 @@ def gene_search_service():
     service.orthogroups_df = orthogroups_df
     service.species_df = species_df
     
-    # Use the real methods from GeneSearchService
-    service.get_gene_by_id.side_effect = GeneSearchService.get_gene_by_id
-    service.get_genes_by_orthogroup.side_effect = GeneSearchService.get_genes_by_orthogroup
-    service.get_genes_by_species.side_effect = GeneSearchService.get_genes_by_species
-    service.search_genes.side_effect = GeneSearchService.search_genes
+    # Use the real methods from GeneSearchService bound to the service instance
+    service.get_gene_by_id = lambda gene_id: GeneSearchService.get_gene_by_id(service, gene_id)
+    service.get_genes_by_orthogroup = lambda orthogroup_id: GeneSearchService.get_genes_by_orthogroup(service, orthogroup_id)
+    service.get_genes_by_species = lambda species_id: GeneSearchService.get_genes_by_species(service, species_id)
+    service.search_genes = lambda query, limit=10: GeneSearchService.search_genes(service, query, limit)
     
     return service
 

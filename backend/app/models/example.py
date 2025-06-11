@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 class Example(BaseModel):
     """Example model for demonstration purposes."""
@@ -6,13 +6,15 @@ class Example(BaseModel):
     name: str
     value: int
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def name_must_not_be_empty(cls, v):
         if not v:
             raise ValueError('name must not be empty')
         return v
     
-    @validator('value')
+    @field_validator('value')
+    @classmethod
     def value_must_be_positive(cls, v):
         if v < 0:
             raise ValueError('value must be positive or zero')

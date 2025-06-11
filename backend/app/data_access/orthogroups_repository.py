@@ -9,6 +9,7 @@ import logging
 import pandas as pd
 import os
 from typing import Dict, List, Optional, Any, Tuple
+from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,13 @@ class OrthogroupsRepository:
         self._data = None
         self._gene_map = {}
         
-        # Configure file paths based on what's available
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        data_dir = os.path.join(base_dir, "data", "orthofinder")
+        # Use centralized configuration for consistent path handling
+        settings = get_settings()
+        data_dir = settings.DATA_DIR
         
-        # Try files in order of preference
+        # Try files in order of preference, including paths from configuration
         potential_files = [
-            os.path.join(data_dir, "Orthogroups_clean_121124.txt"),  # Full file
+            settings.ORTHOGROUPS_FILE,  # Primary file from config
             os.path.join(data_dir, "Orthogroups_clean_121124_sample.csv"),  # Sample file
             os.path.join(data_dir, "Orthogroups.tsv")  # Fallback
         ]
@@ -52,11 +53,9 @@ class OrthogroupsRepository:
             if self._data is None:
                 logger.info(f"Loading orthogroups data from {self.orthogroups_file}")
                 
-                # Determine separator based on file extension
-                if self.orthogroups_file.endswith('.tsv') or self.orthogroups_file.endswith('.txt'):
-                    sep = '\t'
-                else:
-                    sep = ','
+                # All orthogroups files are tab-separated, regardless of extension
+                # This is because orthofinder output is consistently tab-delimited
+                sep = '\t'
                 
                 # Load the data
                 self._data = pd.read_csv(

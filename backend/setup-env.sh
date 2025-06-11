@@ -22,7 +22,7 @@ fi
 # Create conda environment from environment.yml
 if [ -f "environment.yml" ]; then
     echo -e "${YELLOW}Creating conda environment from environment.yml...${NC}"
-    conda env create -f environment.yml --force
+    conda env create -f environment.yml
 else
     echo -e "${RED}environment.yml not found. Please ensure you're in the backend directory.${NC}"
     exit 1

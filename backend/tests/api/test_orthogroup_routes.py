@@ -19,7 +19,7 @@ MOCK_ORTHOGROUP_DATA = {
 # Successful API calls
 def test_get_all_orthogroups_success():
     """Test successful retrieval of all orthogroups."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         response = client.get("/api/orthogroups")
         
@@ -33,7 +33,7 @@ def test_get_all_orthogroups_success():
 
 def test_get_orthogroup_by_id_success():
     """Test successful retrieval of an orthogroup by ID."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         response = client.get("/api/orthogroup/OG0001")
         
@@ -46,7 +46,7 @@ def test_get_orthogroup_by_id_success():
 
 def test_get_species_orthogroups_success():
     """Test successful retrieval of orthogroups for a specific species."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.species.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         response = client.get("/api/species/sp1/orthogroups")
         
@@ -61,7 +61,7 @@ def test_get_species_orthogroups_success():
 # Failed API calls
 def test_get_orthogroup_by_id_not_found():
     """Test retrieval of a non-existent orthogroup."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         response = client.get("/api/orthogroup/non_existent")
         
@@ -73,7 +73,7 @@ def test_get_orthogroup_by_id_not_found():
 
 def test_get_species_orthogroups_not_found():
     """Test retrieval of orthogroups for a non-existent species."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.species.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         response = client.get("/api/species/non_existent/orthogroups")
         
@@ -85,7 +85,7 @@ def test_get_species_orthogroups_not_found():
 
 def test_get_orthogroups_error():
     """Test handling of errors during orthogroup retrieval."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.side_effect = Exception("Test error")
         response = client.get("/api/orthogroups")
         
@@ -98,7 +98,7 @@ def test_get_orthogroups_error():
 # Fuzzy testing
 def test_orthogroup_route_unusual_parameters():
     """Test with unusual parameters."""
-    with patch('app.main.load_mock_data') as mock_load:
+    with patch('app.api.routes.orthogroups.load_mock_data') as mock_load:
         mock_load.return_value = MOCK_ORTHOGROUP_DATA
         
         # Test with unusual query parameters
