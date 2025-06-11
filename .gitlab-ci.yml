@@ -69,7 +69,7 @@ build:
     - main
     - develop
 
-# Deploy to Rocky VM - Simplified for debugging
+# Deploy to Rocky VM - Available to all team members with repo access
 deploy_rocky:
   stage: deploy
   image: alpine:latest
@@ -93,7 +93,8 @@ deploy_rocky:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "Deploying OrthoViewer to Rocky VM via ProxyJump"
+    - echo "🧬 Deploying OrthoViewer to Rocky VM via ProxyJump"
+    - echo "👤 Triggered by $GITLAB_USER_NAME ($GITLAB_USER_LOGIN)"
     - echo "Testing SSH connection through bastion"
     - ssh -o ConnectTimeout=10 rocky "whoami"
     - echo "Creating backup of existing deployment"
@@ -110,12 +111,13 @@ deploy_rocky:
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
     - echo "Deployment complete - checking status"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
+    - echo "🚀 Deployment successful by $GITLAB_USER_NAME!"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
   allow_failure: true
 
-# Health check job (manual trigger)
+# Health check job - Available to all team members (manual trigger)
 health_check:
   stage: deploy
   image: alpine:latest
@@ -139,10 +141,11 @@ health_check:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "Checking Rocky deployment health via ProxyJump"
+    - echo "🔍 Checking Rocky deployment health via ProxyJump"
+    - echo "👤 Health check triggered by $GITLAB_USER_NAME ($GITLAB_USER_LOGIN)"
     - ssh rocky "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
     - ssh rocky "curl -f http://localhost:8080"
-    - echo "Health check complete"
+    - echo "✅ Health check complete by $GITLAB_USER_NAME!"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
