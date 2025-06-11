@@ -44,14 +44,7 @@ validate_platform:
     - cd backend
     - export PYTHONPATH="${PYTHONPATH}:$(pwd)"
     - echo "Testing genomics API endpoints..."
-    - conda run -n orthoviewer2 python -c "
-      from app.main import app;
-      from app.api.biological_routes import load_mock_data;
-      print('FastAPI app loaded successfully');
-      data = load_mock_data('genes.json');
-      print(f'Mock data loaded: {len(data.get(\"genes\", []))} genes');
-      print('Platform ready for genomics workflows!')
-      "
+    - conda run -n orthoviewer2 python -c "from app.main import app; from app.api.biological_routes import load_mock_data; print('FastAPI app loaded successfully'); data = load_mock_data('genes.json'); print('Mock data loaded'); print('Platform ready for genomics workflows!')"
     - echo "Bioinformatics platform validation complete!"
   only:
     - feat/GNP-6697-rocky-deployment
