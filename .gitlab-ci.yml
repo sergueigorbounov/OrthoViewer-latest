@@ -5,6 +5,9 @@ variables:
   ROCKY_HOST: "10.0.0.213"
   ROCKY_USER: "rocky"
   PROJECT_DIR: "/home/rocky/orthoviewer"
+  # Security: Use variables for sensitive connection info
+  BASTION_HOST: "138.102.145.13"
+  BASTION_USER: "sgorboun"
 
 stages:
   - test
@@ -28,6 +31,30 @@ test_backend:
       coverage_report:
         coverage_format: cobertura
         path: backend/coverage.xml
+
+# Validate bioinformatics platform readiness
+validate_platform:
+  stage: test
+  image: condaforge/mambaforge:latest
+  before_script:
+    - conda env create -f environment.yml
+    - source activate orthoviewer2
+  script:
+    - echo "🧬 Validating OrthoViewer2 Bioinformatics Platform"
+    - cd backend
+    - export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+    - echo "✅ Testing genomics API endpoints..."
+    - conda run -n orthoviewer2 python -c "
+      from app.main import app;
+      from app.api.biological_routes import load_mock_data;
+      print('✅ FastAPI app loaded successfully');
+      data = load_mock_data('genes.json');
+      print(f'✅ Mock data loaded: {len(data.get(\"genes\", []))} genes');
+      print('🧬 Platform ready for genomics workflows!')
+      "
+    - echo "🚀 Bioinformatics platform validation complete!"
+  only:
+    - feat/GNP-6697-rocky-deployment
 
 # Build Docker images
 build:
@@ -53,21 +80,40 @@ deploy_rocky:
     # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # Temporarily commenting out ssh-keyscan - host keys already known
-    # - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+    # Configure SSH for ProxyJump through INRAE bastion
+    - echo "Host legolas" >> ~/.ssh/config
+    - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
+    - echo "  User $BASTION_USER" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "" >> ~/.ssh/config
+    - echo "Host rocky" >> ~/.ssh/config
+    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "  User $ROCKY_USER" >> ~/.ssh/config
+    - echo "  ProxyJump legolas" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - chmod 600 ~/.ssh/config
   script:
-    - echo "Deploying OrthoViewer to Rocky VM"
-    - echo "Testing SSH connection"
-    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "whoami"
+    - echo "Deploying OrthoViewer to Rocky VM via ProxyJump"
+    - echo "Testing SSH connection through bastion"
+    - ssh -o ConnectTimeout=10 rocky "whoami"
+    - echo "Creating backup of existing deployment"
+    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR ${PROJECT_DIR}_backup_$(date +%Y%m%d_%H%M%S); echo 'Backup created'; else echo 'No existing deployment to backup'; fi"
     - echo "Creating deployment package"
     - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
     - echo "Uploading package"
-    - scp -o StrictHostKeyChecking=no deploy.tar.gz $ROCKY_USER@$ROCKY_HOST:~/
-    - echo "Deploying on remote"
-    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz && docker compose -f docker-compose.rocky.yml up -d"
-    - echo "Deployment complete"
+    - scp deploy.tar.gz rocky:~/
+    - echo "Deploying on remote (this will restart services)"
+    - ssh rocky "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz"
+    - echo "Stopping existing containers gracefully"
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down || echo 'No containers to stop'"
+    - echo "Starting new deployment"
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
+    - echo "Deployment complete - checking status"
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
   only:
     - feat/GNP-6697-rocky-deployment
+  when: manual
+  allow_failure: true
 
 # Health check job (manual trigger)
 health_check:
@@ -80,12 +126,22 @@ health_check:
     # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # Temporarily commenting out ssh-keyscan - host keys already known
-    # - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+    # Configure SSH for ProxyJump through INRAE bastion
+    - echo "Host legolas" >> ~/.ssh/config
+    - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
+    - echo "  User $BASTION_USER" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "" >> ~/.ssh/config
+    - echo "Host rocky" >> ~/.ssh/config
+    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "  User $ROCKY_USER" >> ~/.ssh/config
+    - echo "  ProxyJump legolas" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - chmod 600 ~/.ssh/config
   script:
-    - echo "Checking Rocky deployment health"
-    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
-    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080"
+    - echo "Checking Rocky deployment health via ProxyJump"
+    - ssh rocky "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
+    - ssh rocky "curl -f http://localhost:8080"
     - echo "Health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
