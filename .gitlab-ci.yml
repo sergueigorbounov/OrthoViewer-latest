@@ -49,7 +49,8 @@ deploy_rocky:
   before_script:
     - apk add --no-cache openssh-client tar
     - eval $(ssh-agent -s)
-    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    # Temporarily commenting out SSH key loading - keys already established
+    # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
@@ -74,7 +75,8 @@ health_check:
   before_script:
     - apk add --no-cache openssh-client curl
     - eval $(ssh-agent -s)
-    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    # Temporarily commenting out SSH key loading - keys already established  
+    # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
