@@ -53,17 +53,18 @@ deploy_rocky:
     # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+    # Temporarily commenting out ssh-keyscan - host keys already known
+    # - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
   script:
     - echo "Deploying OrthoViewer to Rocky VM"
     - echo "Testing SSH connection"
-    - ssh -o ConnectTimeout=10 $ROCKY_USER@$ROCKY_HOST "whoami"
+    - ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "whoami"
     - echo "Creating deployment package"
     - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
     - echo "Uploading package"
-    - scp deploy.tar.gz $ROCKY_USER@$ROCKY_HOST:~/
+    - scp -o StrictHostKeyChecking=no deploy.tar.gz $ROCKY_USER@$ROCKY_HOST:~/
     - echo "Deploying on remote"
-    - ssh $ROCKY_USER@$ROCKY_HOST "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz && docker compose -f docker-compose.rocky.yml up -d"
+    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz && docker compose -f docker-compose.rocky.yml up -d"
     - echo "Deployment complete"
   only:
     - feat/GNP-6697-rocky-deployment
@@ -79,11 +80,12 @@ health_check:
     # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
+    # Temporarily commenting out ssh-keyscan - host keys already known
+    # - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
   script:
     - echo "Checking Rocky deployment health"
-    - ssh $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
-    - ssh $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080"
+    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
+    - ssh -o StrictHostKeyChecking=no $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080"
     - echo "Health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
