@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 import os
 import json
 
-from models.biological_models import (
+from app.models.biological_models import (
     Species, OrthoGroup, Gene, 
     SpeciesResponse, OrthoGroupResponse, GeneResponse, GeneDetailResponse
 )
