@@ -78,10 +78,10 @@ health_check:
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $ROCKY_HOST >> ~/.ssh/known_hosts
   script:
-    - echo "🔍 Checking Rocky deployment health (Jira Compliance)..."
+    - echo "Checking Rocky deployment health"
     - ssh $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
-    - ssh $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080 && echo '✅ Health check passed - Port 8080 responding'"
-    - echo "✅ Jira requirements verified: VM accessible, port 8080 exposed, Docker-only deployment"
+    - ssh $ROCKY_USER@$ROCKY_HOST "curl -f http://localhost:8080"
+    - echo "Health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
