@@ -152,22 +152,9 @@ deploy_rocky:
     - echo "Waiting for services to start..."
     - sleep 10
     - echo "Testing new deployment health..."
-    - |
-      if ssh rocky "curl -f http://localhost:8080/health 2>/dev/null || curl -f http://localhost:8080 2>/dev/null"; then
-        echo "Deployment successful and healthy!"
-        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
-        echo "Deployment complete by $GITLAB_USER_NAME!"
-      else
-        echo "New deployment failed health check - INITIATING ROLLBACK"
-        echo "Rolling back to previous deployment..."
-        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down"
-        ssh rocky "if [ -d $BACKUP_NAME ]; then rm -rf $PROJECT_DIR && mv $BACKUP_NAME $PROJECT_DIR && echo 'Rollback completed'; fi"
-        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
-        echo "Rollback complete - original deployment restored"
-        exit 1
-      fi
-    - echo "Final status check:"
+    - ssh rocky "curl -f http://localhost:8080/health 2>/dev/null || curl -f http://localhost:8080 2>/dev/null" && echo "Deployment successful and healthy!" || (echo "New deployment failed health check - INITIATING ROLLBACK" && echo "Rolling back to previous deployment..." && ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down" && ssh rocky "if [ -d $BACKUP_NAME ]; then rm -rf $PROJECT_DIR && mv $BACKUP_NAME $PROJECT_DIR && echo 'Rollback completed'; fi" && ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d" && echo "Rollback complete - original deployment restored" && exit 1)
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
+    - echo "Deployment complete by $GITLAB_USER_NAME!"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
