@@ -55,10 +55,9 @@ deploy_rocky:
     - chmod 644 ~/.ssh/known_hosts
   script:
     - echo "🚀 Deploying OrthoViewer to Rocky VM (Jira Task Compliance)"
-    - echo "Target: $ROCKY_USER@$ROCKY_HOST:$PROJECT_DIR"
-    - echo "Port: 8080 (nginx exposed, no root required)"
-    - echo "Method: Docker only + Conda environment"
-    - echo ""
+    - echo "Target $ROCKY_USER@$ROCKY_HOST $PROJECT_DIR"
+    - echo "Port 8080 (nginx exposed, no root required)"
+    - echo "Method Docker only + Conda environment"
     - echo "📡 Testing SSH connection..."
     - ssh -o ConnectTimeout=10 $ROCKY_USER@$ROCKY_HOST "whoami && echo 'SSH connection successful'"
     - echo "📦 Creating deployment package..."
@@ -78,15 +77,13 @@ deploy_rocky:
     - ssh $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && sleep 30"
     - echo "🔍 Verifying deployment..."
     - ssh $ROCKY_USER@$ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
-    - ssh $ROCKY_USER@$ROCKY_HOST "(curl -f http://localhost:8080 && echo '✅ OrthoViewer responding on port 8080') || (echo '⚠️ Service not yet ready, logs:' && docker-compose -f docker-compose.rocky.yml logs --tail=10)"
-    - echo ""
+    - ssh $ROCKY_USER@$ROCKY_HOST "(curl -f http://localhost:8080 && echo '✅ OrthoViewer responding on port 8080') || (echo '⚠️ Service not yet ready, logs' && docker-compose -f docker-compose.rocky.yml logs --tail=10)"
     - echo "🎉 DEPLOYMENT COMPLETE - Jira Requirements Satisfied"
-    - echo "✓ VM: rocky@$ROCKY_HOST"
-    - echo "✓ Port: 8080 (nginx exposed)"
-    - echo "✓ Method: Docker only"
-    - echo "✓ Environment: Conda-based (environment.yml)"
-    - echo ""
-    - echo "🌐 Access via: ssh -L 8080:localhost:8080 $ROCKY_USER@$ROCKY_HOST"
+    - echo "✓ VM rocky@$ROCKY_HOST"
+    - echo "✓ Port 8080 (nginx exposed)"
+    - echo "✓ Method Docker only"
+    - echo "✓ Environment Conda-based (environment.yml)"
+    - echo "🌐 Access via ssh -L 8080:localhost:8080 $ROCKY_USER@$ROCKY_HOST"
   only:
     - feat/GNP-6697-rocky-deployment
 
