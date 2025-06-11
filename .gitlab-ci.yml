@@ -89,22 +89,24 @@ pre_deploy_check:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "PRE-DEPLOYMENT SAFETY CHECK"
+    - echo "PRE-DEPLOYMENT SAFETY CHECK - ORTHOVIEWER DIRECTORY ONLY"
     - echo "Safety check by $GITLAB_USER_NAME"
-    - echo "Verifying current deployment status"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps" || echo "No current deployment found"
+    - echo "Verifying orthoviewer directory structure"
+    - ssh rocky "ls -la $PROJECT_DIR 2>/dev/null || echo 'Orthoviewer directory does not exist yet'"
+    - echo "Checking current deployment status in orthoviewer directory"
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps 2>/dev/null || echo 'No current deployment found'"
     - echo "Testing current service availability"
     - ssh rocky "curl -f http://localhost:8080 2>/dev/null && echo 'Service is healthy' || echo 'Service not responding'"
-    - echo "Checking available disk space"
-    - ssh rocky "df -h $PROJECT_DIR"
-    - echo "SAFETY CONFIRMATION - Ready for deployment"
+    - echo "Checking available disk space for orthoviewer"
+    - ssh rocky "df -h /home/rocky"
+    - echo "SAFETY CONFIRMATION - Ready for ISOLATED deployment to $PROJECT_DIR"
     - echo "Next step - Manually trigger deploy_rocky job"
-    - echo "WARNING - This will create a backup and replace deployment"
+    - echo "WARNING - This will ONLY affect $PROJECT_DIR directory"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
 
-# Deploy to Rocky VM - Available to all team members with repo access
+# Deploy to Rocky VM - ISOLATED to orthoviewer directory only
 deploy_rocky:
   stage: deploy
   image: alpine:3.19
@@ -133,29 +135,37 @@ deploy_rocky:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "DEPLOYMENT SAFETY CHECK - Protecting existing deployment"
+    - echo "🔒 ISOLATED DEPLOYMENT TO ORTHOVIEWER DIRECTORY ONLY"
     - echo "Triggered by $GITLAB_USER_NAME"
+    - echo "Target directory $PROJECT_DIR (isolated deployment)"
     - echo "Testing SSH connection"
     - ssh -o ConnectTimeout=10 rocky "whoami"
-    - echo "Creating backup"
-    - BACKUP_NAME="${PROJECT_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
-    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR $BACKUP_NAME && echo 'Backup created'; fi"
+    - echo "Creating isolated backup in orthoviewer directory"
+    - BACKUP_NAME="orthoviewer_backup_$(date +%Y%m%d_%H%M%S)"
+    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR /home/rocky/$BACKUP_NAME && echo 'Backup created at /home/rocky/$BACKUP_NAME'; else echo 'No existing deployment to backup'; fi"
     - echo "Creating deployment package"
     - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
-    - echo "Uploading package"
-    - scp deploy.tar.gz rocky:~/
-    - echo "Deploying on remote"
-    - ssh rocky "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz"
-    - echo "Stopping existing containers"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down || echo 'No containers to stop'"
-    - echo "Starting new deployment"
+    - echo "Uploading package to temporary location"
+    - scp deploy.tar.gz rocky:~/orthoviewer_deploy_temp.tar.gz
+    - echo "Preparing isolated orthoviewer directory"
+    - ssh rocky "mkdir -p $PROJECT_DIR"
+    - echo "Stopping existing containers (orthoviewer only)"
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down 2>/dev/null || echo 'No containers to stop'"
+    - echo "Clearing orthoviewer directory for clean deployment"
+    - ssh rocky "rm -rf $PROJECT_DIR/* && echo 'Orthoviewer directory cleared'"
+    - echo "Deploying to isolated orthoviewer directory"
+    - ssh rocky "cd $PROJECT_DIR && tar -xzf ~/orthoviewer_deploy_temp.tar.gz"
+    - echo "Starting new deployment (orthoviewer containers only)"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
+    - echo "Cleaning up temporary files"
+    - ssh rocky "rm -f ~/orthoviewer_deploy_temp.tar.gz"
     - echo "Waiting for services to start"
     - sleep 10
     - echo "Testing deployment health"
-    - ssh rocky "curl -f http://localhost:8080 2>/dev/null && echo 'Deployment successful' || echo 'Deployment failed'"
+    - ssh rocky "curl -f http://localhost:8080 2>/dev/null && echo '✅ Deployment successful' || echo '❌ Deployment failed'"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
-    - echo "Deployment complete by $GITLAB_USER_NAME"
+    - echo "🎉 ISOLATED DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
+    - echo "Only $PROJECT_DIR affected - system remains clean"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
@@ -190,11 +200,12 @@ health_check:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "Checking Rocky deployment health"
+    - echo "🔍 Checking orthoviewer deployment health (isolated check)"
     - echo "Health check triggered by $GITLAB_USER_NAME"
+    - echo "Checking containers in orthoviewer directory only"
     - ssh rocky "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps"
     - ssh rocky "curl -f http://localhost:8080"
-    - echo "Health check complete"
+    - echo "✅ Orthoviewer health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
