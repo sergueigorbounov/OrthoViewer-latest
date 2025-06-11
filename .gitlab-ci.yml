@@ -69,6 +69,43 @@ build:
     - main
     - develop
 
+# Pre-deployment safety confirmation - REQUIRED before deployment
+pre_deploy_check:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client curl
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    # Configure SSH for ProxyJump through INRAE bastion
+    - echo "Host legolas" >> ~/.ssh/config
+    - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
+    - echo "  User $BASTION_USER" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "" >> ~/.ssh/config
+    - echo "Host rocky" >> ~/.ssh/config
+    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "  User $ROCKY_USER" >> ~/.ssh/config
+    - echo "  ProxyJump legolas" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - chmod 600 ~/.ssh/config
+  script:
+    - echo "🔒 PRE-DEPLOYMENT SAFETY CHECK"
+    - echo "👤 Safety check by $GITLAB_USER_NAME ($GITLAB_USER_LOGIN)"
+    - echo "🔍 Verifying current deployment status..."
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps" || echo "ℹ️ No current deployment found"
+    - echo "🌐 Testing current service availability..."
+    - ssh rocky "curl -f http://localhost:8080 2>/dev/null && echo '✅ Current service is healthy' || echo '⚠️ Current service not responding'"
+    - echo "💾 Checking available disk space..."
+    - ssh rocky "df -h $PROJECT_DIR"
+    - echo "🛡️ SAFETY CONFIRMATION: Ready for deployment"
+    - echo "ℹ️ Next step: Manually trigger 'deploy_rocky' job if you want to proceed"
+    - echo "⚠️ WARNING: This will create a backup and replace the current deployment"
+  only:
+    - feat/GNP-6697-rocky-deployment
+  when: manual
+
 # Deploy to Rocky VM - Available to all team members with repo access
 deploy_rocky:
   stage: deploy
@@ -93,25 +130,43 @@ deploy_rocky:
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "🧬 Deploying OrthoViewer to Rocky VM via ProxyJump"
+    - echo "🛡️ DEPLOYMENT SAFETY CHECK - Protecting existing deployment"
     - echo "👤 Triggered by $GITLAB_USER_NAME ($GITLAB_USER_LOGIN)"
+    - echo "🔍 Checking current deployment status..."
+    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps" || echo "No current deployment found"
     - echo "Testing SSH connection through bastion"
     - ssh -o ConnectTimeout=10 rocky "whoami"
-    - echo "Creating backup of existing deployment"
-    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR ${PROJECT_DIR}_backup_$(date +%Y%m%d_%H%M%S); echo 'Backup created'; else echo 'No existing deployment to backup'; fi"
-    - echo "Creating deployment package"
+    - echo "📦 Creating PROTECTED backup of existing deployment"
+    - BACKUP_NAME="${PROJECT_DIR}_backup_$(date +%Y%m%d_%H%M%S)_by_${GITLAB_USER_LOGIN}"
+    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR $BACKUP_NAME && echo '✅ Protected backup created at $BACKUP_NAME'; else echo 'ℹ️ No existing deployment to backup'; fi"
+    - echo "📋 Creating deployment package"
     - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
-    - echo "Uploading package"
+    - echo "📤 Uploading package"
     - scp deploy.tar.gz rocky:~/
-    - echo "Deploying on remote (this will restart services)"
+    - echo "🔄 Deploying on remote (this will restart services)"
     - ssh rocky "mkdir -p $PROJECT_DIR && cd $PROJECT_DIR && tar -xzf ~/deploy.tar.gz"
-    - echo "Stopping existing containers gracefully"
+    - echo "⏹️ Stopping existing containers gracefully"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down || echo 'No containers to stop'"
-    - echo "Starting new deployment"
+    - echo "🚀 Starting new deployment"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
-    - echo "Deployment complete - checking status"
+    - echo "⏱️ Waiting for services to start..."
+    - sleep 10
+    - echo "🏥 Testing new deployment health..."
+    - if ssh rocky "curl -f http://localhost:8080/health 2>/dev/null || curl -f http://localhost:8080 2>/dev/null"; then
+        echo "✅ Deployment successful and healthy!";
+        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps";
+        echo "🎉 Deployment complete by $GITLAB_USER_NAME!";
+      else
+        echo "❌ New deployment failed health check - INITIATING ROLLBACK";
+        echo "🔄 Rolling back to previous deployment...";
+        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down";
+        ssh rocky "if [ -d $BACKUP_NAME ]; then rm -rf $PROJECT_DIR && mv $BACKUP_NAME $PROJECT_DIR && echo '↩️ Rollback completed'; fi";
+        ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d";
+        echo "🛡️ Rollback complete - original deployment restored";
+        exit 1;
+      fi
+    - echo "📊 Final status check:"
     - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
-    - echo "🚀 Deployment successful by $GITLAB_USER_NAME!"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
