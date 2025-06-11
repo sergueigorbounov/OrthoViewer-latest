@@ -20,6 +20,7 @@ test_backend:
     - source activate orthoviewer2
   script:
     - cd backend
+    - export PYTHONPATH="${PYTHONPATH}:$(pwd)"
     - conda run -n orthoviewer2 pytest tests/ --cov=app --cov-report=xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
