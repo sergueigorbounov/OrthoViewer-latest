@@ -32,9 +32,10 @@ jobs:
       with:
         miniforge-variant: Mambaforge
         miniforge-version: latest
-        activate-environment: orthoviewer
+        activate-environment: orthoviewer2
         use-mamba: true
-        environment-file: environment.yml
+        environment-file: backend/environment.yml
+        auto-activate-base: false
         
     - name: Set up Node.js
       uses: actions/setup-node@v2

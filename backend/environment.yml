@@ -2,7 +2,6 @@ name: orthoviewer2
 channels:
   - conda-forge
   - bioconda
-  - defaults
 dependencies:
   # Core Python
   - python=3.10
@@ -14,12 +13,16 @@ dependencies:
   - python-multipart>=0.0.5
   - requests
   - python-dotenv
+  - httpx  # Required for FastAPI test client
   
   # Data Processing & Scientific Libraries
   - pandas
   - numpy
   - ete3=3.1.3
   - biopython
+  
+  # Database & ORM
+  - sqlalchemy
   
   # Monitoring & Performance
   - prometheus_client>=0.16.0
