@@ -6,7 +6,7 @@ variables:
   ROCKY_USER: "rocky"
   PROJECT_DIR: "/home/rocky/orthoviewer"
   # Security: Use variables for sensitive connection info
-  BASTION_HOST: "138.102.145.13"
+  BASTION_HOST: "legolas.versailles.inrae.fr"
   BASTION_USER: "sgorboun"
 
 stages:
@@ -74,10 +74,12 @@ pre_deploy_check:
   before_script:
     - apk add --no-cache openssh-client curl
     - eval $(ssh-agent -s)
+    # Load SSH key for deployment
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # Configure SSH for ProxyJump through INRAE bastion with shorter timeouts
-    - echo "Host legolas" >> ~/.ssh/config
+    # Configure SSH to match working local config
+    - echo "Host legolas legolas.versailles.inrae.fr" >> ~/.ssh/config
     - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $BASTION_USER" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
@@ -85,10 +87,9 @@ pre_deploy_check:
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - echo "" >> ~/.ssh/config
-    - echo "Host rocky" >> ~/.ssh/config
-    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "Host 10.0.0.*" >> ~/.ssh/config
+    - echo "  ProxyJump $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $ROCKY_USER" >> ~/.ssh/config
-    - echo "  ProxyJump legolas" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - echo "  ConnectTimeout 30" >> ~/.ssh/config
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
@@ -98,15 +99,15 @@ pre_deploy_check:
     - echo "PRE-DEPLOYMENT SAFETY CHECK - ORTHOVIEWER DIRECTORY ONLY"
     - echo "Safety check by $GITLAB_USER_NAME"
     - echo "Testing bastion connectivity first..."
-    - ssh -o ConnectTimeout=30 legolas "echo 'Bastion connection successful'" || echo "WARNING - Bastion connection failed"
+    - ssh -o ConnectTimeout=30 legolas.versailles.inrae.fr "echo 'Bastion connection successful'" || echo "WARNING - Bastion connection failed"
     - echo "Verifying orthoviewer directory structure"
-    - ssh rocky "ls -la $PROJECT_DIR" || echo "WARNING - Rocky connection failed"
+    - ssh $ROCKY_HOST "ls -la $PROJECT_DIR" || echo "WARNING - Rocky connection failed"
     - echo "Checking current deployment status in orthoviewer directory"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps" || echo "WARNING - Cannot check deployment status"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps" || echo "WARNING - Cannot check deployment status"
     - echo "Testing current service availability"
-    - ssh rocky "curl -f http://localhost:8080" || echo "WARNING - Cannot test service"
+    - ssh $ROCKY_HOST "curl -f http://localhost:8080" || echo "WARNING - Cannot test service"
     - echo "Checking available disk space for orthoviewer"
-    - ssh rocky "df -h /home/rocky" || echo "WARNING - Cannot check disk space"
+    - ssh $ROCKY_HOST "df -h /home/rocky" || echo "WARNING - Cannot check disk space"
     - echo "SAFETY CONFIRMATION - Ready for ISOLATED deployment to $PROJECT_DIR"
     - echo "Next step - Manually trigger deploy_rocky job"
     - echo "WARNING - This will ONLY affect $PROJECT_DIR directory"
@@ -128,12 +129,12 @@ deploy_rocky:
   before_script:
     - apk add --no-cache openssh-client tar
     - eval $(ssh-agent -s)
-    # Temporarily commenting out SSH key loading - keys already established
-    # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    # Load SSH key for deployment
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # Configure SSH for ProxyJump through INRAE bastion with shorter timeouts
-    - echo "Host legolas" >> ~/.ssh/config
+    # Configure SSH to match working local config
+    - echo "Host legolas legolas.versailles.inrae.fr" >> ~/.ssh/config
     - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $BASTION_USER" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
@@ -141,10 +142,9 @@ deploy_rocky:
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - echo "" >> ~/.ssh/config
-    - echo "Host rocky" >> ~/.ssh/config
-    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "Host 10.0.0.*" >> ~/.ssh/config
+    - echo "  ProxyJump $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $ROCKY_USER" >> ~/.ssh/config
-    - echo "  ProxyJump legolas" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - echo "  ConnectTimeout 30" >> ~/.ssh/config
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
@@ -155,31 +155,31 @@ deploy_rocky:
     - echo "Triggered by $GITLAB_USER_NAME"
     - echo "Target directory $PROJECT_DIR (isolated deployment)"
     - echo "Testing SSH connection with timeout..."
-    - ssh -o ConnectTimeout=30 rocky "whoami" || (echo "❌ SSH connection failed" && exit 1)
+    - ssh -o ConnectTimeout=30 $ROCKY_HOST "whoami" || (echo "❌ SSH connection failed" && exit 1)
     - echo "Creating isolated backup in orthoviewer directory"
     - BACKUP_NAME="orthoviewer_backup_$(date +%Y%m%d_%H%M%S)"
-    - ssh rocky "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR /home/rocky/$BACKUP_NAME && echo 'Backup created at /home/rocky/$BACKUP_NAME'; else echo 'No existing deployment to backup'; fi"
+    - ssh $ROCKY_HOST "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR /home/rocky/$BACKUP_NAME && echo 'Backup created at /home/rocky/$BACKUP_NAME'; else echo 'No existing deployment to backup'; fi"
     - echo "Creating deployment package"
     - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
     - echo "Uploading package to temporary location"
-    - scp deploy.tar.gz rocky:~/orthoviewer_deploy_temp.tar.gz
+    - scp deploy.tar.gz $ROCKY_HOST:~/orthoviewer_deploy_temp.tar.gz
     - echo "Preparing isolated orthoviewer directory"
-    - ssh rocky "mkdir -p $PROJECT_DIR"
+    - ssh $ROCKY_HOST "mkdir -p $PROJECT_DIR"
     - echo "Stopping existing containers (orthoviewer only)"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down 2>/dev/null || echo 'No containers to stop'"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down 2>/dev/null || echo 'No containers to stop'"
     - echo "Clearing orthoviewer directory for clean deployment"
-    - ssh rocky "rm -rf $PROJECT_DIR/* && echo 'Orthoviewer directory cleared'"
+    - ssh $ROCKY_HOST "rm -rf $PROJECT_DIR/* && echo 'Orthoviewer directory cleared'"
     - echo "Deploying to isolated orthoviewer directory"
-    - ssh rocky "cd $PROJECT_DIR && tar -xzf ~/orthoviewer_deploy_temp.tar.gz"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && tar -xzf ~/orthoviewer_deploy_temp.tar.gz"
     - echo "Starting new deployment (orthoviewer containers only)"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
     - echo "Cleaning up temporary files"
-    - ssh rocky "rm -f ~/orthoviewer_deploy_temp.tar.gz"
+    - ssh $ROCKY_HOST "rm -f ~/orthoviewer_deploy_temp.tar.gz"
     - echo "Waiting for services to start"
     - sleep 10
     - echo "Testing deployment health"
-    - ssh rocky "curl -f http://localhost:8080 2>/dev/null && echo '✅ Deployment successful' || echo '❌ Deployment failed'"
-    - ssh rocky "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
+    - ssh $ROCKY_HOST "curl -f http://localhost:8080 2>/dev/null && echo '✅ Deployment successful' || echo '❌ Deployment failed'"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
     - echo "🎉 ISOLATED DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
     - echo "Only $PROJECT_DIR affected - system remains clean"
   only:
@@ -199,12 +199,12 @@ health_check:
   before_script:
     - apk add --no-cache openssh-client curl
     - eval $(ssh-agent -s)
-    # Temporarily commenting out SSH key loading - keys already established  
-    # - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    # Load SSH key for deployment
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # Configure SSH for ProxyJump through INRAE bastion with shorter timeouts
-    - echo "Host legolas" >> ~/.ssh/config
+    # Configure SSH to match working local config
+    - echo "Host legolas legolas.versailles.inrae.fr" >> ~/.ssh/config
     - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $BASTION_USER" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
@@ -212,10 +212,9 @@ health_check:
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - echo "" >> ~/.ssh/config
-    - echo "Host rocky" >> ~/.ssh/config
-    - echo "  HostName $ROCKY_HOST" >> ~/.ssh/config
+    - echo "Host 10.0.0.*" >> ~/.ssh/config
+    - echo "  ProxyJump $BASTION_HOST" >> ~/.ssh/config
     - echo "  User $ROCKY_USER" >> ~/.ssh/config
-    - echo "  ProxyJump legolas" >> ~/.ssh/config
     - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
     - echo "  ConnectTimeout 30" >> ~/.ssh/config
     - echo "  ServerAliveInterval 10" >> ~/.ssh/config
@@ -225,8 +224,8 @@ health_check:
     - echo "🔍 Checking orthoviewer deployment health (isolated check)"
     - echo "Health check triggered by $GITLAB_USER_NAME"
     - echo "Checking containers in orthoviewer directory only"
-    - ssh rocky "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps" || echo "⚠️ Cannot check containers"
-    - ssh rocky "curl -f http://localhost:8080" || echo "⚠️ Service not responding"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps" || echo "⚠️ Cannot check containers"
+    - ssh $ROCKY_HOST "curl -f http://localhost:8080" || echo "⚠️ Service not responding"
     - echo "✅ Orthoviewer health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
