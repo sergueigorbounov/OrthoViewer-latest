@@ -3,7 +3,7 @@ import json
 import os
 from unittest.mock import patch, mock_open
 
-from app.main import load_mock_data
+from app.api.biological_routes import load_mock_data
 
 # Test data
 MOCK_JSON_DATA = {

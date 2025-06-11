@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from unittest.mock import patch, mock_open
 
-from app.main import get_gene_by_id, app
+from app.main import app
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
