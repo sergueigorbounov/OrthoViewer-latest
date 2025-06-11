@@ -1,7 +1,9 @@
-const apiUrl = import.meta.env.VITE_BACKEND_URL || '/api';
+const apiUrl = import.meta.env.VITE_BACKEND_URL || '';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const url = `${apiUrl}${endpoint}`;
+  // Ensure endpoint starts with /api if not already present
+  const normalizedEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+  const url = `${apiUrl}${normalizedEndpoint}`;
   
   console.log('🔍 API Request:', options.method || 'GET', url);
   

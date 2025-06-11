@@ -1,13 +1,15 @@
-# Build stage
-FROM node:20-alpine as build
+# Build stage - Use standard Node.js (not Alpine)
+FROM node:20 as build
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev) for build
-RUN npm install
+# Install dependencies
+RUN npm cache clean --force && \
+    rm -rf node_modules package-lock.json && \
+    npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -27,4 +29,4 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port 80
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx", "-g", "daemon off;"] 
