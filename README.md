@@ -1,4 +1,4 @@
-# OrthoViewer 🧬
+# OrthoViewer
 
 **A Modern Platform for Biological Data Visualization and Phylogenetic Analysis**
 
@@ -12,7 +12,7 @@ OrthoViewer is a cutting-edge web-based platform designed for the visualization 
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Python 3.10+** (conda/miniforge recommended)
@@ -27,11 +27,11 @@ cd OrthoViewer-latest
 ```
 
 That's it! This script will:
-- ✅ Install all dependencies (conda-first approach)
-- ✅ Set up environments automatically
-- ✅ Start backend on http://localhost:8003
-- ✅ Launch frontend on http://localhost:5173
-- ✅ Enable hot-reload for development
+- Install all dependencies (conda-first approach)
+- Set up environments automatically
+- Start backend on http://localhost:8003
+- Launch frontend on http://localhost:5173
+- Enable hot-reload for development
 
 ### Access Your Application
 - **Frontend**: http://localhost:5173
@@ -40,7 +40,165 @@ That's it! This script will:
 
 ---
 
-## 📁 Project Structure
+## CI/CD Pipeline and Deployment
+
+### Pipeline Overview
+
+OrthoViewer uses an autonomous deployment pipeline built with GitLab CI/CD, featuring comprehensive fallback mechanisms and security-first design principles.
+
+#### Pipeline Stages
+
+1. **Build Stage**
+   - Frontend compilation with Vite
+   - Backend dependency resolution
+   - Docker image preparation
+   - Artifact optimization
+
+2. **Test Stage**
+   - Unit tests with pytest
+   - Integration testing
+   - Frontend component testing
+   - API endpoint validation
+
+3. **Package Stage**
+   - Docker Compose configuration for Rocky Linux
+   - Deployment artifact creation
+   - Environment file generation
+   - Compression and optimization
+
+4. **Deploy Stage**
+   - Autonomous SSH deployment attempt
+   - Automatic fallback to artifact creation
+   - Manual deployment preparation
+   - Post-deployment verification
+
+### Deployment Architecture
+
+#### Security-First Approach
+
+The deployment system follows institutional security requirements:
+
+- **SSH Key Restrictions**: Deployment keys limited to specific IP addresses
+- **Bastion Host Access**: All connections routed through `legolas.versailles.inrae.fr`
+- **Network Segmentation**: Rocky VMs accessible only through VPN
+- **Manual Override**: Critical deployments require operator intervention
+
+#### Deployment Environments
+
+**Development Environment**
+```bash
+# Local development setup
+./dev.sh
+# Access: http://localhost:5173
+```
+
+**Rocky Linux Production**
+```bash
+# Target: Rocky VM at 10.0.0.213
+# Port: 8080 (non-root Docker deployment)
+# Access: http://localhost:8080 (via SSH tunnel)
+```
+
+### SSH Configuration
+
+#### Required SSH Config Entry
+
+Add to `~/.ssh/config`:
+
+```
+Host 10.0.0.213
+    HostName 10.0.0.213
+    User rocky
+    ProxyJump legolas.versailles.inrae.fr
+    IdentityFile ~/.ssh/your_deployment_key
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+```
+
+#### SSH Tunnel for Access
+
+```bash
+# Forward local port 8080 to Rocky VM port 8080
+ssh -L 8080:localhost:8080 rocky@10.0.0.213
+
+# Access OrthoViewer at http://localhost:8080
+```
+
+### Artifact Management
+
+#### Automated Artifact Creation
+
+When SSH deployment fails, the pipeline automatically creates deployment artifacts:
+
+**Artifact Contents:**
+- `orthoviewer-{commit}-{timestamp}.tar.gz` - Complete deployment package
+- `deployment.env` - Environment configuration
+- `docker-compose.rocky.yml` - Rocky-specific Docker configuration
+- Deployment instructions and verification scripts
+
+#### Manual Deployment Process
+
+1. **Download Artifacts**
+   ```bash
+   # From GitLab pipeline artifacts section
+   wget <artifact-url>/orthoviewer-{commit}-{timestamp}.tar.gz
+   ```
+
+2. **Transfer to Rocky VM**
+   ```bash
+   scp orthoviewer-*.tar.gz rocky@10.0.0.213:/home/rocky/
+   ```
+
+3. **Deploy on Rocky VM**
+   ```bash
+   ssh rocky@10.0.0.213
+   cd /home/rocky
+   mkdir -p orthoviewer
+   cd orthoviewer
+   tar -xzf ../orthoviewer-*.tar.gz
+   docker-compose -f docker-compose.rocky.yml down
+   docker-compose -f docker-compose.rocky.yml up -d
+   ```
+
+4. **Verify Deployment**
+   ```bash
+   # On Rocky VM
+   docker ps
+   curl http://localhost:8080
+   
+   # From local machine (with SSH tunnel)
+   curl http://localhost:8080
+   ```
+
+#### Rocky Linux Specific Configuration
+
+**Port Configuration:**
+- External port: 8080 (non-privileged)
+- Internal port: 80 (nginx container)
+- Mapping: `8080:80` in docker-compose.rocky.yml
+
+**Security Considerations:**
+- Non-root Docker execution
+- Dedicated `/home/rocky/orthoviewer` directory
+- No system directory modifications
+- Isolated container network
+
+### Network Requirements
+
+#### VPN Access
+- **INRAE VPN** connection required for Rocky VM access
+- **Bastion host** routing through legolas.versailles.inrae.fr
+- **Network segmentation** for security compliance
+
+#### Firewall Configuration
+- Port 8080 accessible on Rocky VM
+- SSH (port 22) accessible through bastion
+- Docker daemon accessible to rocky user
+
+---
+
+## Project Structure
 
 ```
 orthoviewer/
@@ -50,24 +208,26 @@ orthoviewer/
 ├── scripts/                    # Organized utility scripts
 ├── tests/                      # Comprehensive test suites
 ├── docs/                       # Documentation
-├── dev.sh                      # Main development startup
-├── tdd.sh                      # Test-driven development
-├── setup-docker.sh             # Docker environment setup
-└── environment.yml             # Conda environment specification
+├── .gitlab-ci.yml             # CI/CD pipeline configuration
+├── docker-compose.rocky.yml   # Rocky Linux deployment config
+├── dev.sh                     # Main development startup
+├── tdd.sh                     # Test-driven development
+├── setup-docker.sh           # Docker environment setup
+└── environment.yml           # Conda environment specification
 ```
 
 ---
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Quick Commands
 | Command | Purpose |
 |---------|---------|
-| `./dev.sh` | 🚀 Start full development environment |
-| `./tdd.sh` | 🧪 Test-driven development with live testing |
-| `./start-server.sh` | 🌐 Production server startup |
-| `./fastapi_start.sh` | ⚡ FastAPI with frontend |
-| `./setup-docker.sh` | 🐳 Complete Docker setup |
+| `./dev.sh` | Start full development environment |
+| `./tdd.sh` | Test-driven development with live testing |
+| `./start-server.sh` | Production server startup |
+| `./fastapi_start.sh` | FastAPI with frontend |
+| `./setup-docker.sh` | Complete Docker setup |
 
 ### Individual Services
 ```bash
@@ -92,7 +252,7 @@ orthoviewer/
 
 ---
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
 ### System Overview
 OrthoViewer employs a modern 3-layer architecture designed for scalability and maintainability:
@@ -180,10 +340,24 @@ backend/app/
 ### Performance Targets
 | Operation | Target | Status |
 |-----------|--------|--------|
-| Gene search | < 50ms | ✅ Achieved |
-| Species lookup | < 10ms | ✅ Achieved |
-| Orthogroup retrieval | < 100ms | ✅ Achieved |
-| Dashboard load | < 200ms | ✅ Achieved |
+| Gene search | < 50ms | Achieved |
+| Species lookup | < 10ms | Achieved |
+| Orthogroup retrieval | < 100ms | Achieved |
+| Dashboard load | < 200ms | Achieved |
+
+---
+
+## Key Features
+
+### Biological Data Analysis
+- **Orthogroup Management**: Comprehensive orthogroup visualization and analysis
+- **Phylogenetic Trees**: Interactive tree rendering with ETE3 integration
+- **Species Comparison**: Multi-species comparative genomics
+- **Gene Search**: High-performance gene lookup and filtering
+
+### Modern User Experience
+- **Responsive Design**: Beautiful UI that works on all devices
+- **Interactive Visualizations**: D3.js-powered charts and trees
 
 ---
 
