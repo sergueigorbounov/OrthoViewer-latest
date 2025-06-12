@@ -26,7 +26,7 @@ cd OrthoViewer-latest
 ./dev.sh
 ```
 
-That's it! This script will:
+This script will:
 - Install all dependencies (conda-first approach)
 - Set up environments automatically
 - Start backend on http://localhost:8003
@@ -44,7 +44,7 @@ That's it! This script will:
 
 ### Pipeline Overview
 
-OrthoViewer uses an autonomous deployment pipeline built with GitLab CI/CD, featuring comprehensive fallback mechanisms and security-first design principles.
+OrthoViewer implements an autonomous deployment pipeline using GitLab CI/CD, incorporating comprehensive fallback mechanisms and security-first design principles aligned with institutional requirements.
 
 #### Pipeline Stages
 
@@ -74,9 +74,9 @@ OrthoViewer uses an autonomous deployment pipeline built with GitLab CI/CD, feat
 
 ### Deployment Architecture
 
-#### Security-First Approach
+#### Security Framework
 
-The deployment system follows institutional security requirements:
+The deployment system adheres to INRAE institutional security requirements:
 
 - **SSH Key Restrictions**: Deployment keys limited to specific IP addresses
 - **Bastion Host Access**: All connections routed through `legolas.versailles.inrae.fr`
@@ -289,14 +289,14 @@ OrthoViewer employs a modern 3-layer architecture designed for scalability and m
 
 ### Technology Stack
 
-**Frontend Excellence**
+**Frontend Technologies**
 - **React 18** with TypeScript for type-safe development
-- **Vite** for lightning-fast builds and hot-reload
-- **Material-UI (MUI)** for beautiful, accessible components
+- **Vite** for optimized builds and development server
+- **Material-UI (MUI)** for accessible user interface components
 - **D3.js** for interactive phylogenetic visualizations
 - **Redux Toolkit** for predictable state management
 
-**Backend Power**
+**Backend Technologies**
 - **FastAPI** for high-performance API development
 - **Python 3.10+** with modern async/await patterns
 - **ETE3 Toolkit** for phylogenetic tree manipulation
@@ -306,9 +306,9 @@ OrthoViewer employs a modern 3-layer architecture designed for scalability and m
 **Infrastructure & DevOps**
 - **Docker + Compose** for containerized deployment
 - **Conda** for reproducible scientific environments
-- **Pytest** for comprehensive testing
+- **Pytest** for comprehensive testing framework
 - **OpenAPI/Swagger** for automatic API documentation
-- **GitLab CI/CD** for automated deployment
+- **GitLab CI/CD** for automated deployment pipelines
 
 ### 3-Layer Backend Architecture
 
@@ -356,32 +356,16 @@ backend/app/
 - **Gene Search**: High-performance gene lookup and filtering
 
 ### Modern User Experience
-- **Responsive Design**: Beautiful UI that works on all devices
+- **Responsive Design**: Cross-platform compatibility
 - **Interactive Visualizations**: D3.js-powered charts and trees
 
 ---
 
-## 🔬 Key Features
+## Conda Environment Management
 
-### Biological Data Analysis
-- **Orthogroup Management**: Comprehensive orthogroup visualization and analysis
-- **Phylogenetic Trees**: Interactive tree rendering with ETE3 integration
-- **Species Comparison**: Multi-species comparative genomics
-- **Gene Search**: High-performance gene lookup and filtering
+### INRAE Conda Compliance
 
-### Modern User Experience
-- **Responsive Design**: Beautiful UI that works on all devices
-- **Interactive Visualizations**: D3.js-powered charts and trees
-- **Real-time Updates**: Live data updates and collaboration
-- **Accessibility**: WCAG-compliant interface design
-
----
-
-## 🐍 Conda Environment Management
-
-### ✅ **FULLY COMPLIANT** with INRAE Conda Recommendations
-
-This project is **100% compliant** with INRAE conda recommendations as specified in:
+This project is fully compliant with INRAE conda recommendations as specified in:
 https://open-science.inrae.fr/fr/offre-service/fiches-pratiques-et-recommandations/quelles-alternatives-aux-fonctionnalites-payantes-danaconda
 
 ### Quick Setup
@@ -409,16 +393,16 @@ conda list
 ```
 
 ### Compliance Benefits
-- ✅ Uses conda-forge channel primarily
-- ✅ Uses bioconda for bioinformatics packages  
-- ✅ No commercial Anaconda dependencies
-- ✅ Environment specification in `environment.yml`
-- ✅ Docker containers use conda base images
-- ✅ CI/CD pipelines use conda
+- Uses conda-forge channel primarily
+- Uses bioconda for bioinformatics packages
+- No commercial Anaconda dependencies
+- Environment specification in `environment.yml`
+- Docker containers use conda base images
+- CI/CD pipelines use conda
 
 ---
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
 ### Comprehensive Test Suite
 - **Unit Tests**: Test individual components and functions
@@ -445,7 +429,7 @@ conda list
 
 ---
 
-## 🐳 Docker & Deployment
+## Docker & Deployment
 
 ### Docker Development
 ```bash
@@ -482,7 +466,7 @@ If you prefer to deploy manually without the CI/CD pipeline, you can use this pr
 #### Quick One-Liner Deployment
 ```bash
 # Complete manual deployment in one command chain
-tar -czf orthoviewer-deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.pytest_cache' --exclude='logs' --exclude='orthoviewer-deploy.tar.gz' . && scp orthoviewer-deploy.tar.gz rocky@10.0.0.213:~/ && ssh rocky@10.0.0.213 "mkdir -p orthoviewer && cd orthoviewer && tar -xzf ~/orthoviewer-deploy.tar.gz --strip-components=1 && docker compose -f docker-compose.rocky.yml down --remove-orphans && docker compose -f docker-compose.rocky.yml up -d && rm ~/orthoviewer-deploy.tar.gz" && rm orthoviewer-deploy.tar.gz && echo "🚀 Deployment complete! Access at http://10.0.0.213:8080"
+tar -czf orthoviewer-deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.pytest_cache' --exclude='logs' --exclude='orthoviewer-deploy.tar.gz' . && scp orthoviewer-deploy.tar.gz rocky@10.0.0.213:~/ && ssh rocky@10.0.0.213 "mkdir -p orthoviewer && cd orthoviewer && tar -xzf ~/orthoviewer-deploy.tar.gz --strip-components=1 && docker compose -f docker-compose.rocky.yml down --remove-orphans && docker compose -f docker-compose.rocky.yml up -d && rm ~/orthoviewer-deploy.tar.gz" && rm orthoviewer-deploy.tar.gz && echo "Deployment complete! Access at http://10.0.0.213:8080"
 ```
 
 #### Prerequisites
@@ -582,16 +566,16 @@ curl -s -o /dev/null -w '%{http_code}' http://localhost:8080
 
 ---
 
-## 📚 Scripts Reference
+## Scripts Reference
 
 ### Core Development Scripts
 | Script | Purpose |
 |--------|---------|
-| `./dev.sh` | 🚀 Main development environment |
-| `./tdd.sh` | 🧪 Test-driven development |
-| `./start-server.sh` | 🌐 Production server |
-| `./fastapi_start.sh` | ⚡ FastAPI + frontend |
-| `./setup-docker.sh` | 🐳 Docker setup |
+| `./dev.sh` | Main development environment |
+| `./tdd.sh` | Test-driven development |
+| `./start-server.sh` | Production server |
+| `./fastapi_start.sh` | FastAPI + frontend |
+| `./setup-docker.sh` | Docker setup |
 
 ### Organized Script Directory
 ```
@@ -632,7 +616,7 @@ scripts/
 
 ---
 
-## 🔧 Environment Configuration
+## Environment Configuration
 
 ### Primary Environment Files
 - `environment.yml` - Main conda environment
@@ -648,7 +632,7 @@ scripts/
 
 ---
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -689,11 +673,11 @@ bash Miniforge3-Linux-x86_64.sh
 
 ---
 
-## 📈 Development Guidelines
+## Development Guidelines
 
 ### API Layer Best Practices
 ```python
-# ✅ Good: Thin controllers
+# Good: Thin controllers
 @router.get("/species/{species_id}")
 async def get_species(species_id: str, service: SpeciesService = Depends()):
     return await service.get_species_by_id(species_id)
@@ -701,7 +685,7 @@ async def get_species(species_id: str, service: SpeciesService = Depends()):
 
 ### Service Layer Best Practices
 ```python
-# ✅ Good: Pure business logic
+# Good: Pure business logic
 class SpeciesService:
     def __init__(self, repo: SpeciesRepository):
         self.repo = repo
@@ -713,7 +697,7 @@ class SpeciesService:
 
 ### Repository Layer Best Practices
 ```python
-# ✅ Good: Abstract data access
+# Good: Abstract data access
 class SpeciesRepository(ABC):
     @abstractmethod
     async def get_by_id(self, species_id: str) -> Species:
@@ -722,25 +706,25 @@ class SpeciesRepository(ABC):
 
 ---
 
-## 📊 Project Status & Compliance
+## Project Status & Compliance
 
-### ✅ Conda Compliance Status
-- **Status**: 🟢 **FULLY COMPLIANT** with INRAE recommendations
+### Conda Compliance Status
+- **Status**: Fully compliant with INRAE recommendations
 - **Environment Management**: Standardized conda environments
 - **Dependencies**: All available through conda-forge and bioconda
 - **CI/CD**: Uses conda in all pipelines
 - **Docker**: Conda-based containers
 
-### 🚀 Deployment Status
-- **Development**: ✅ Ready with `./dev.sh`
-- **Testing**: ✅ Comprehensive test suite
-- **Docker**: ✅ Full containerization
-- **Production**: ✅ Rocky server deployment ready
-- **CI/CD**: ✅ GitLab automation configured
+### Deployment Status
+- **Development**: Ready with `./dev.sh`
+- **Testing**: Comprehensive test suite
+- **Docker**: Full containerization
+- **Production**: Rocky server deployment ready
+- **CI/CD**: GitLab automation configured
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. **Fork the repository**
 2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
@@ -752,13 +736,13 @@ class SpeciesRepository(ABC):
 
 ---
 
-## 📄 License
+## License
 
 This project is part of the INRAE PEPR-BREIF WP2 initiative for biological data visualization and analysis.
 
 ---
 
-## 🆘 Support
+## Support
 
 - **Documentation**: Check individual script `--help` options
 - **Issues**: Report issues on the project repository
@@ -766,4 +750,4 @@ This project is part of the INRAE PEPR-BREIF WP2 initiative for biological data 
 
 ---
 
-**Happy Coding! 🧬✨**
+**Scientific Computing Platform for Comparative Genomics Research**
