@@ -49,6 +49,91 @@ validate_platform:
   only:
     - feat/GNP-6697-rocky-deployment
 
+# Frontend build test
+test_frontend:
+  stage: test
+  image: node:20-slim
+  before_script:
+    - apt-get update && apt-get install -y python3 make g++
+  script:
+    - echo "🔍 Frontend Build Test"
+    - cd frontend-vite
+    - echo "📦 Installing dependencies..."
+    - if [ -f package-lock.json ]; then
+        echo "✅ Using npm ci (lock file exists)";
+        npm ci --legacy-peer-deps --no-optional;
+      else
+        echo "⚠️  Using npm install (no lock file)";
+        npm install --legacy-peer-deps --no-optional;
+      fi
+    - echo "🔨 Building frontend..."
+    - npm run build
+    - echo "✅ Build verification..."
+    - ls -la dist/
+    - test -f dist/index.html || (echo "❌ Build failed - no index.html" && exit 1)
+    - echo "✅ Frontend build test passed!"
+  artifacts:
+    paths:
+      - frontend-vite/dist/
+    expire_in: 1 hour
+  only:
+    - feat/GNP-6697-rocky-deployment
+
+# Network connectivity test - Debug SSH issues
+test_network:
+  stage: test
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client curl iputils
+    - eval $(ssh-agent -s)
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "Host legolas legolas.versailles.inrae.fr" >> ~/.ssh/config
+    - echo "  HostName $BASTION_HOST" >> ~/.ssh/config
+    - echo "  User $BASTION_USER" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "  ConnectTimeout 30" >> ~/.ssh/config
+    - echo "  ServerAliveInterval 10" >> ~/.ssh/config
+    - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
+    - echo "" >> ~/.ssh/config
+    - echo "Host 10.0.0.*" >> ~/.ssh/config
+    - echo "  ProxyJump $BASTION_HOST" >> ~/.ssh/config
+    - echo "  User $ROCKY_USER" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "  ConnectTimeout 30" >> ~/.ssh/config
+    - echo "  ServerAliveInterval 10" >> ~/.ssh/config
+    - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
+    - chmod 600 ~/.ssh/config
+  script:
+    - echo "🌐 NETWORK CONNECTIVITY DEBUG"
+    - echo "=============================="
+    - echo "Runner IP Info:"
+    - ip route get 1.1.1.1 | head -1 || echo "Cannot get route info"
+    - echo ""
+    - echo "DNS Resolution Test:"
+    - nslookup $BASTION_HOST || echo "DNS resolution failed"
+    - echo ""
+    - echo "Network Connectivity Test:"
+    - ping -c 3 8.8.8.8 || echo "Internet connectivity failed"
+    - ping -c 3 $BASTION_HOST || echo "Bastion ping failed"
+    - echo ""
+    - echo "SSH Configuration Test:"
+    - cat ~/.ssh/config
+    - echo ""
+    - echo "SSH Key Test:"
+    - ssh-add -l
+    - echo ""
+    - echo "SSH Connection Test (Bastion Only):"
+    - ssh -v -o BatchMode=yes -o ConnectTimeout=10 $BASTION_USER@$BASTION_HOST "echo 'Direct bastion connection works'" || echo "Direct bastion connection failed"
+    - echo ""
+    - echo "SSH ProxyJump Test:"
+    - ssh -v -o BatchMode=yes -o ConnectTimeout=10 $ROCKY_HOST "echo 'ProxyJump connection works'" || echo "ProxyJump connection failed"
+  only:
+    - feat/GNP-6697-rocky-deployment
+  when: manual
+  allow_failure: true
+
 # Build Docker images
 build:
   stage: build
@@ -117,7 +202,7 @@ pre_deploy_check:
   when: manual
   allow_failure: true
 
-# Deploy to Rocky VM - ISOLATED to orthoviewer directory only
+# Deploy to Rocky VM - SEAMLESS FALLBACK to artifact deployment
 deploy_rocky:
   stage: deploy
   image: alpine:3.19
@@ -151,40 +236,220 @@ deploy_rocky:
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "🔒 ISOLATED DEPLOYMENT TO ORTHOVIEWER DIRECTORY ONLY"
+    - echo "🚀 FULLY AUTOMATIC DEPLOYMENT - Trying direct SSH first..."
     - echo "Triggered by $GITLAB_USER_NAME"
-    - echo "Target directory $PROJECT_DIR (isolated deployment)"
-    - echo "Testing SSH connection with timeout..."
-    - ssh -o ConnectTimeout=30 $ROCKY_HOST "whoami" || (echo "❌ SSH connection failed" && exit 1)
-    - echo "Creating isolated backup in orthoviewer directory"
-    - BACKUP_NAME="orthoviewer_backup_$(date +%Y%m%d_%H%M%S)"
-    - ssh $ROCKY_HOST "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR /home/rocky/$BACKUP_NAME && echo 'Backup created at /home/rocky/$BACKUP_NAME'; else echo 'No existing deployment to backup'; fi"
-    - echo "Creating deployment package"
-    - tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
-    - echo "Uploading package to temporary location"
-    - scp deploy.tar.gz $ROCKY_HOST:~/orthoviewer_deploy_temp.tar.gz
-    - echo "Preparing isolated orthoviewer directory"
-    - ssh $ROCKY_HOST "mkdir -p $PROJECT_DIR"
-    - echo "Stopping existing containers (orthoviewer only)"
-    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down 2>/dev/null || echo 'No containers to stop'"
-    - echo "Clearing orthoviewer directory for clean deployment"
-    - ssh $ROCKY_HOST "rm -rf $PROJECT_DIR/* && echo 'Orthoviewer directory cleared'"
-    - echo "Deploying to isolated orthoviewer directory"
-    - ssh $ROCKY_HOST "cd $PROJECT_DIR && tar -xzf ~/orthoviewer_deploy_temp.tar.gz"
-    - echo "Starting new deployment (orthoviewer containers only)"
-    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
-    - echo "Cleaning up temporary files"
-    - ssh $ROCKY_HOST "rm -f ~/orthoviewer_deploy_temp.tar.gz"
-    - echo "Waiting for services to start"
-    - sleep 10
-    - echo "Testing deployment health"
-    - ssh $ROCKY_HOST "curl -f http://localhost:8080 2>/dev/null && echo '✅ Deployment successful' || echo '❌ Deployment failed'"
-    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
-    - echo "🎉 ISOLATED DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
-    - echo "Only $PROJECT_DIR affected - system remains clean"
+    
+    # Test SSH connectivity first
+    - |
+      if ssh -o ConnectTimeout=30 -o BatchMode=yes $ROCKY_HOST "echo 'SSH connection works'" 2>/dev/null; then
+        echo "✅ SSH CONNECTION SUCCESS - Proceeding with direct deployment"
+        
+        echo "Creating isolated backup in orthoviewer directory"
+        BACKUP_NAME="orthoviewer_backup_$(date +%Y%m%d_%H%M%S)"
+        ssh $ROCKY_HOST "if [ -d $PROJECT_DIR ]; then cp -r $PROJECT_DIR /home/rocky/$BACKUP_NAME && echo 'Backup created at /home/rocky/$BACKUP_NAME'; else echo 'No existing deployment to backup'; fi"
+        
+        echo "Creating deployment package"
+        tar -czf deploy.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
+        
+        echo "Uploading package to temporary location"
+        scp deploy.tar.gz $ROCKY_HOST:~/orthoviewer_deploy_temp.tar.gz
+        
+        echo "Preparing isolated orthoviewer directory"
+        ssh $ROCKY_HOST "mkdir -p $PROJECT_DIR"
+        
+        echo "Stopping existing containers (orthoviewer only)"
+        ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml down 2>/dev/null || echo 'No containers to stop'"
+        
+        echo "Clearing orthoviewer directory for clean deployment"
+        ssh $ROCKY_HOST "rm -rf $PROJECT_DIR/* && echo 'Orthoviewer directory cleared'"
+        
+        echo "Deploying to isolated orthoviewer directory"
+        ssh $ROCKY_HOST "cd $PROJECT_DIR && tar -xzf ~/orthoviewer_deploy_temp.tar.gz"
+        
+        echo "Starting new deployment (orthoviewer containers only)"
+        ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml up -d"
+        
+        echo "Cleaning up temporary files"
+        ssh $ROCKY_HOST "rm -f ~/orthoviewer_deploy_temp.tar.gz"
+        
+        echo "Waiting for services to start"
+        sleep 10
+        
+        echo "Testing deployment health"
+        ssh $ROCKY_HOST "curl -f http://localhost:8080 2>/dev/null && echo '✅ DIRECT DEPLOYMENT SUCCESSFUL' || echo '❌ Deployment failed'"
+        ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
+        
+        echo "🎉 DIRECT DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
+        
+      else
+        echo "❌ SSH CONNECTION FAILED - Triggering AUTOMATIC FALLBACK"
+        echo "🔄 ACTIVATING DOWNSTREAM AUTOMATIC DEPLOYMENT"
+        
+        # Create deployment artifact for automatic deployment
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        ARTIFACT_NAME="orthoviewer-${CI_COMMIT_SHORT_SHA}-${TIMESTAMP}"
+        echo "📦 Creating artifact for automatic deployment: ${ARTIFACT_NAME}"
+        
+        tar -czf "${ARTIFACT_NAME}.tar.gz" \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='__pycache__' \
+          .
+        
+        echo "✅ Artifact ready for automatic deployment"
+        echo "DEPLOYMENT_NEEDED=true" > deployment.env
+        echo "ARTIFACT_NAME=${ARTIFACT_NAME}.tar.gz" >> deployment.env
+      fi
+    
+  artifacts:
+    paths:
+      - "orthoviewer-*.tar.gz"
+      - "deployment.env"
+    expire_in: 1 hour
+    reports:
+      dotenv: deployment.env
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
+
+# AUTOMATIC FALLBACK DEPLOYMENT - Runs automatically when SSH fails
+auto_deploy_fallback:
+  stage: deploy
+  image: alpine:3.19
+  dependencies:
+    - deploy_rocky
+  before_script:
+    - apk add --no-cache openssh-client tar curl
+    - eval $(ssh-agent -s)
+    - echo "$ROCKY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    # Use direct connection approach for fallback
+    - echo "Host 10.0.0.213" >> ~/.ssh/config
+    - echo "  User rocky" >> ~/.ssh/config
+    - echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+    - echo "  ConnectTimeout 30" >> ~/.ssh/config
+    - echo "  ServerAliveInterval 10" >> ~/.ssh/config
+    - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
+    - chmod 600 ~/.ssh/config
+  script:
+    - echo "🤖 AUTOMATIC FALLBACK DEPLOYMENT ACTIVATED"
+    - echo "========================================="
+    
+    # Check if automatic deployment is needed
+    - |
+      if [ "${DEPLOYMENT_NEEDED}" = "true" ]; then
+        echo "✅ Automatic deployment triggered"
+        echo "📦 Using artifact: ${ARTIFACT_NAME}"
+        
+        # Try secure key-based deployment strategies
+        echo "🔄 Strategy 1: Direct SSH with key authentication"
+        if ssh -o ConnectTimeout=20 -o BatchMode=yes rocky@10.0.0.213 "echo 'Direct connection works'" 2>/dev/null; then
+          echo "✅ Direct SSH with key works - deploying automatically"
+          
+          scp "${ARTIFACT_NAME}" rocky@10.0.0.213:~/
+          
+          ssh rocky@10.0.0.213 "
+            mkdir -p /home/rocky/orthoviewer
+            cd /home/rocky/orthoviewer
+            docker compose -f docker-compose.rocky.yml down 2>/dev/null || true
+            tar -xzf ~/${ARTIFACT_NAME}
+            docker compose -f docker-compose.rocky.yml up --build -d
+            echo '✅ Automatic deployment successful!'
+            docker compose -f docker-compose.rocky.yml ps
+          "
+          
+          echo "🎉 AUTOMATIC DEPLOYMENT COMPLETED!"
+          
+        else
+          echo "❌ SSH key authentication failed"
+          
+          echo "🔄 Strategy 2: Webhook-based deployment"
+          # Try webhook if configured
+          if [ -n "${ROCKY_WEBHOOK_URL}" ]; then
+            echo "📡 Triggering webhook deployment..."
+            if curl -X POST "${ROCKY_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "{\"artifact\":\"${ARTIFACT_NAME}\", \"commit\":\"${CI_COMMIT_SHA}\"}" 2>/dev/null; then
+              echo "✅ Webhook deployment triggered successfully!"
+            else
+              echo "❌ Webhook deployment failed"
+            fi
+          else
+            echo "⚠️ No webhook URL configured"
+          fi
+          
+          echo "🔄 Strategy 3: Creating manual deployment options"
+          cat > manual-intervention.txt << EOF
+🚨 AUTOMATIC DEPLOYMENT FAILED
+==============================
+
+Pipeline couldn't deploy automatically using SSH keys.
+Artifact is ready for manual deployment: ${ARTIFACT_NAME}
+
+📦 DOWNLOAD ARTIFACT:
+GitLab → CI/CD → Jobs → Download artifacts
+
+🚀 DEPLOYMENT OPTIONS:
+
+OPTION 1 - If you have SSH key access:
+scp ${ARTIFACT_NAME} rocky@10.0.0.213:~/
+ssh rocky@10.0.0.213
+cd /home/rocky/orthoviewer
+tar -xzf ~/${ARTIFACT_NAME}
+docker compose -f docker-compose.rocky.yml up --build -d
+
+OPTION 2 - If you use password SSH:
+scp ${ARTIFACT_NAME} rocky@10.0.0.213:~/  # (enter password when prompted)
+ssh rocky@10.0.0.213                      # (enter password when prompted)
+cd /home/rocky/orthoviewer
+tar -xzf ~/${ARTIFACT_NAME}
+docker compose -f docker-compose.rocky.yml up --build -d
+
+OPTION 3 - Through bastion server:
+scp ${ARTIFACT_NAME} ${BASTION_USER}@${BASTION_HOST}:~/
+ssh ${BASTION_USER}@${BASTION_HOST}
+scp ${ARTIFACT_NAME} rocky@10.0.0.213:~/
+ssh rocky@10.0.0.213
+cd /home/rocky/orthoviewer && tar -xzf ~/${ARTIFACT_NAME}
+docker compose -f docker-compose.rocky.yml up --build -d
+
+✅ VERIFICATION:
+After deployment, check: http://localhost:8080 (via SSH tunnel)
+SSH tunnel: ssh -L 8080:localhost:8080 rocky@10.0.0.213
+
+🔧 Need help? Contact the team member who set up the SSH keys.
+EOF
+          
+          cat manual-intervention.txt
+          
+          # Try to send notification if configured
+          if [ -n "${SLACK_WEBHOOK}" ]; then
+            curl -X POST "${SLACK_WEBHOOK}" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"🚨 OrthoViewer deployment needs manual intervention. SSH key access failed. Artifact ${ARTIFACT_NAME} ready for download.\"}" || echo "Slack notification failed"
+          fi
+          
+          echo "❌ Automatic deployment failed - manual deployment required"
+          echo "📋 Instructions created in manual-intervention.txt"
+          exit 1
+        fi
+        
+      else
+        echo "✅ No automatic deployment needed - direct SSH deployment succeeded"
+      fi
+    
+  artifacts:
+    paths:
+      - "manual-intervention.txt"
+    expire_in: 24 hours
+    when: on_failure
+  rules:
+    - if: '$DEPLOYMENT_NEEDED == "true"'
+      when: always
+    - when: never
+  only:
+    - feat/GNP-6697-rocky-deployment
   allow_failure: true
 
 # Health check job - Available to all team members (manual trigger)
@@ -231,3 +496,214 @@ health_check:
     - feat/GNP-6697-rocky-deployment
   when: manual
   allow_failure: true
+
+# GitLab Artifact-Based Deployment
+build_deployment_artifact:
+  stage: build
+  image: node:20-slim
+  before_script:
+    - apt-get update && apt-get install -y python3 make g++ tar
+  script:
+    - echo "📦 Building deployment artifact in GitLab pipeline"
+    - echo "This creates a downloadable deployment package"
+    
+    # Build frontend
+    - cd frontend-vite
+    - echo "🔍 Checking package-lock.json..."
+    - if [ -f package-lock.json ]; then
+        echo "✅ Using npm ci (lock file exists)";
+        npm ci --legacy-peer-deps --no-optional;
+      else
+        echo "⚠️  Using npm install (no lock file)";
+        npm install --legacy-peer-deps --no-optional;
+      fi
+    - echo "🔨 Building frontend..."
+    - npm run build
+    - echo "✅ Frontend built successfully"
+    - ls -la dist/
+    - test -f dist/index.html || (echo "❌ Build failed - no index.html" && exit 1)
+    - cd ..
+    
+    # Create deployment package
+    - TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    - ARTIFACT_NAME="orthoviewer-${CI_COMMIT_SHORT_SHA}-${TIMESTAMP}"
+    - echo "Creating artifact: ${ARTIFACT_NAME}"
+    
+    # Package everything needed for deployment
+    - tar -czf "${ARTIFACT_NAME}.tar.gz" \
+        --exclude='.git' \
+        --exclude='node_modules' \
+        --exclude='frontend-vite/node_modules' \
+        --exclude='__pycache__' \
+        --exclude='.pytest_cache' \
+        --exclude='logs' \
+        --exclude='*.tar.gz' \
+        .
+    
+    - echo "✅ Deployment artifact created: ${ARTIFACT_NAME}.tar.gz"
+    - ls -lh "${ARTIFACT_NAME}.tar.gz"
+    
+    # Create deployment instructions
+    - echo "📋 DEPLOYMENT INSTRUCTIONS" > deployment-instructions.txt
+    - echo "=========================" >> deployment-instructions.txt
+    - echo "" >> deployment-instructions.txt
+    - echo "1. Download artifact: ${ARTIFACT_NAME}.tar.gz" >> deployment-instructions.txt
+    - echo "2. Upload to Rocky VM:" >> deployment-instructions.txt
+    - echo "   scp ${ARTIFACT_NAME}.tar.gz rocky@10.0.0.213:~/" >> deployment-instructions.txt
+    - echo "" >> deployment-instructions.txt
+    - echo "3. Deploy on Rocky VM:" >> deployment-instructions.txt
+    - echo "   ssh rocky@10.0.0.213" >> deployment-instructions.txt
+    - echo "   mkdir -p /home/rocky/orthoviewer" >> deployment-instructions.txt
+    - echo "   cd /home/rocky/orthoviewer" >> deployment-instructions.txt
+    - echo "   tar -xzf ~/${ARTIFACT_NAME}.tar.gz" >> deployment-instructions.txt
+    - echo "   docker compose -f docker-compose.rocky.yml down" >> deployment-instructions.txt
+    - echo "   docker compose -f docker-compose.rocky.yml up --build -d" >> deployment-instructions.txt
+    - echo "" >> deployment-instructions.txt
+    - echo "4. Verify deployment:" >> deployment-instructions.txt
+    - echo "   curl http://localhost:8080" >> deployment-instructions.txt
+    - echo "" >> deployment-instructions.txt
+    - echo "🌐 Access via SSH tunnel: ssh -L 8080:localhost:8080 rocky@10.0.0.213" >> deployment-instructions.txt
+    - echo "Then open: http://localhost:8080" >> deployment-instructions.txt
+    
+    - cat deployment-instructions.txt
+    
+  artifacts:
+    name: "orthoviewer-deployment-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - "orthoviewer-*.tar.gz"
+      - "deployment-instructions.txt"
+    expire_in: 7 days
+    when: always
+  only:
+    - feat/GNP-6697-rocky-deployment
+
+# Advanced: GitLab Pages for deployment dashboard (optional)
+deploy_dashboard:
+  stage: deploy
+  image: alpine:3.19
+  dependencies:
+    - build_deployment_artifact
+  script:
+    - echo "📊 Creating deployment dashboard"
+    - mkdir -p public
+    
+    # Create a simple deployment dashboard
+    - cat > public/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OrthoViewer Deployment Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .artifact { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .instructions { background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .command { background: #263238; color: #fff; padding: 10px; border-radius: 4px; font-family: monospace; }
+        h1 { color: #1976d2; }
+        h2 { color: #424242; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 OrthoViewer Deployment Dashboard</h1>
+        <p>Download deployment artifacts and follow instructions for Rocky VM deployment.</p>
+        
+        <div class="artifact">
+            <h2>📦 Latest Deployment Artifact</h2>
+            <p>Built from commit: <strong>${CI_COMMIT_SHORT_SHA}</strong></p>
+            <p>Pipeline: <a href="${CI_PIPELINE_URL}">#${CI_PIPELINE_ID}</a></p>
+            <p>Download the tar.gz file from the <a href="${CI_JOB_URL}/artifacts">artifacts section</a></p>
+        </div>
+        
+        <div class="instructions">
+            <h2>🔧 Deployment Instructions</h2>
+            <ol>
+                <li>Download the deployment artifact (.tar.gz file)</li>
+                <li>Upload to Rocky VM:
+                    <div class="command">scp orthoviewer-*.tar.gz rocky@10.0.0.213:~/</div>
+                </li>
+                <li>Deploy on Rocky VM:
+                    <div class="command">
+ssh rocky@10.0.0.213<br>
+mkdir -p /home/rocky/orthoviewer<br>
+cd /home/rocky/orthoviewer<br>
+tar -xzf ~/orthoviewer-*.tar.gz<br>
+docker compose -f docker-compose.rocky.yml down<br>
+docker compose -f docker-compose.rocky.yml up --build -d
+                    </div>
+                </li>
+                <li>Access application:
+                    <div class="command">ssh -L 8080:localhost:8080 rocky@10.0.0.213</div>
+                    <p>Then open: <a href="http://localhost:8080">http://localhost:8080</a></p>
+                </li>
+            </ol>
+        </div>
+        
+        <div class="artifact">
+            <h2>📋 Status</h2>
+            <p>✅ Frontend build: Completed</p>
+            <p>✅ Deployment package: Ready</p>
+            <p>⏳ Manual deployment: Pending</p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+    
+    # Copy deployment instructions
+    - cp deployment-instructions.txt public/ || echo "No deployment instructions found"
+    
+    # Create auto-deployment script
+    - cat > public/auto-deploy.sh << 'EOF'
+#!/bin/bash
+# Auto-deployment script for Rocky VM
+# Run this script on your local machine (where SSH to Rocky works)
+
+set -e
+
+ROCKY_HOST="10.0.0.213"
+ROCKY_USER="rocky"
+PROJECT_DIR="/home/rocky/orthoviewer"
+
+echo "🚀 OrthoViewer Auto-Deployment"
+echo "=============================="
+
+# Find the latest artifact
+ARTIFACT=$(ls -t orthoviewer-*.tar.gz 2>/dev/null | head -1)
+
+if [ -z "$ARTIFACT" ]; then
+    echo "❌ No deployment artifact found!"
+    echo "Please download the .tar.gz file from GitLab artifacts first."
+    exit 1
+fi
+
+echo "📦 Found artifact: $ARTIFACT"
+echo "📤 Uploading to Rocky VM..."
+
+scp "$ARTIFACT" "$ROCKY_USER@$ROCKY_HOST:~/"
+
+echo "🚀 Deploying on Rocky VM..."
+ssh "$ROCKY_USER@$ROCKY_HOST" "
+    mkdir -p $PROJECT_DIR
+    cd $PROJECT_DIR
+    tar -xzf ~/$ARTIFACT
+    docker compose -f docker-compose.rocky.yml down
+    docker compose -f docker-compose.rocky.yml up --build -d
+    echo '✅ Deployment complete!'
+    echo '🌐 Setting up SSH tunnel...'
+    echo 'Run: ssh -L 8080:localhost:8080 $ROCKY_USER@$ROCKY_HOST'
+    echo 'Then open: http://localhost:8080'
+"
+
+echo "🎉 Deployment completed successfully!"
+EOF
+    
+    - chmod +x public/auto-deploy.sh
+    
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  only:
+    - feat/GNP-6697-rocky-deployment
+  when: manual
