@@ -58,7 +58,9 @@ test_frontend:
   script:
     - echo "🔍 Frontend Build Test"
     - cd frontend-vite
-    - echo "📦 Installing dependencies..."
+    - echo "📦 Cleaning and installing dependencies..."
+    - "rm -rf node_modules package-lock.json"
+    - "npm cache clean --force"
     - "npm install --legacy-peer-deps --no-optional"
     - echo "🔨 Building frontend..."
     - npm run build
@@ -497,7 +499,9 @@ build_deployment_artifact:
     - "echo 'Building deployment artifact in GitLab pipeline'"
     - "echo 'This creates a downloadable deployment package'"
     - "cd frontend-vite"
-    - "echo 'Installing dependencies...'"
+    - "echo 'Cleaning and installing dependencies...'"
+    - "rm -rf node_modules package-lock.json"
+    - "npm cache clean --force"
     - "npm install --legacy-peer-deps --no-optional"
     - "echo 'Building frontend...'"
     - "npm run build"
