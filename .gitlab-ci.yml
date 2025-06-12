@@ -59,13 +59,7 @@ test_frontend:
     - echo "🔍 Frontend Build Test"
     - cd frontend-vite
     - echo "📦 Installing dependencies..."
-    - if [ -f package-lock.json ]; then
-        echo "✅ Using npm ci (lock file exists)";
-        npm ci --legacy-peer-deps --no-optional;
-      else
-        echo "⚠️  Using npm install (no lock file)";
-        npm install --legacy-peer-deps --no-optional;
-      fi
+    - "npm install --legacy-peer-deps --no-optional"
     - echo "🔨 Building frontend..."
     - npm run build
     - echo "✅ Build verification..."
@@ -503,8 +497,8 @@ build_deployment_artifact:
     - "echo 'Building deployment artifact in GitLab pipeline'"
     - "echo 'This creates a downloadable deployment package'"
     - "cd frontend-vite"
-    - "echo 'Checking package-lock.json...'"
-    - "if [ -f package-lock.json ]; then echo 'Using npm ci' && npm ci --legacy-peer-deps --no-optional; else echo 'Using npm install' && npm install --legacy-peer-deps --no-optional; fi"
+    - "echo 'Installing dependencies...'"
+    - "npm install --legacy-peer-deps --no-optional"
     - "echo 'Building frontend...'"
     - "npm run build"
     - "echo 'Frontend built successfully'"
