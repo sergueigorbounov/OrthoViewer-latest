@@ -751,3 +751,224 @@ This project is part of the INRAE PEPR-BREIF WP2 initiative for biological data 
 ---
 
 **Scientific Computing Platform for Comparative Genomics Research**
+
+# OrthoViewer2 Platform
+
+OrthoViewer2 is a comprehensive bioinformatics platform designed for phylogenetic analysis and orthologous gene visualization. The platform integrates advanced computational biology tools with modern web technologies to provide researchers with an intuitive interface for analyzing evolutionary relationships.
+
+## Prerequisites
+
+### System Requirements
+- Docker and Docker Compose
+- Git
+- Modern web browser (Chrome, Firefox, Safari)
+- Conda environment manager
+- SSH access for remote deployments
+
+### Dependencies
+- FastAPI framework for backend services
+- React with TypeScript for frontend interface
+- PostgreSQL for data persistence
+- Nginx for reverse proxy and static file serving
+- ETE3 toolkit for phylogenetic computations
+
+## Installation and Startup
+
+### Local Development Environment
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd orthoviewer
+
+# Initialize the development environment
+make setup
+
+# Launch all services
+make up
+
+# Access the application
+open http://localhost:80
+```
+
+### Production Deployment
+
+```bash
+# Build deployment artifacts
+make build-deployment
+
+# Deploy to production environment
+make deploy-production
+```
+
+## Rocky VM Connection Management
+
+### Automated Connection Scripts
+
+To prevent SSH tunnel issues when accessing the Rocky VM deployment, use our automated connection management:
+
+```bash
+# Quick connection (recommended)
+./scripts/quick-rocky.sh
+
+# Full connection manager
+./scripts/connect-rocky.sh connect
+
+# Check connection status
+./scripts/connect-rocky.sh status
+
+# Stop tunnel
+./scripts/connect-rocky.sh stop
+
+# Restart tunnel
+./scripts/connect-rocky.sh restart
+```
+
+### Manual Connection (Legacy)
+
+```bash
+# Establish SSH tunnel
+ssh -L 8080:localhost:8080 rocky@10.0.0.213 -N
+
+# Access application
+open http://localhost:8080
+```
+
+### Connection Troubleshooting
+
+The automated scripts perform comprehensive health checks:
+- Rocky VM accessibility verification
+- OrthoViewer service status validation
+- Port conflict detection
+- Tunnel process management
+- Connection integrity testing
+
+## CI/CD Pipeline
+
+### Pipeline Architecture
+
+The continuous integration and deployment pipeline consists of four distinct stages:
+
+1. **Source Code Analysis**: Static code analysis and dependency verification
+2. **Automated Testing**: Unit tests, integration tests, and functional validation
+3. **Artifact Generation**: Docker image construction and deployment package creation
+4. **Deployment Orchestration**: Automated deployment with manual security validation
+
+### Pipeline Configuration
+
+```yaml
+stages:
+  - build
+  - test
+  - package
+  - deploy
+```
+
+### Artifact Management
+
+Build artifacts are automatically generated and stored in GitLab:
+- `orthoviewer-{commit}-{timestamp}.tar.gz`: Complete deployment package
+- `deployment.env`: Environment configuration variables
+- Container images tagged with commit identifiers
+
+### Security Framework
+
+- SSH key-based authentication for secure remote access
+- Network segmentation through bastion host architecture
+- Automated security scanning during build process
+- Manual deployment approval for production environments
+
+## Deployment Architecture
+
+### Network Configuration
+
+```
+Developer PC → Bastion Host (legolas.versailles.inrae.fr) → Rocky VM (10.0.0.213)
+```
+
+### Service Architecture
+
+```
+Nginx (Port 8080) → Frontend (React) → Backend (FastAPI) → Database (PostgreSQL)
+```
+
+### Container Orchestration
+
+The platform utilizes Docker Compose for service orchestration:
+- **Frontend Service**: React application with TypeScript
+- **Backend Service**: FastAPI with Conda environment
+- **Database Service**: PostgreSQL with persistent storage
+- **Proxy Service**: Nginx for request routing and static file serving
+
+## Frontend Technologies
+
+### Technology Stack
+- React 18 with TypeScript for type safety
+- Vite for optimized build process and development server
+- Modern CSS with responsive design principles
+- Component-based architecture for maintainability
+
+### Development Workflow
+```bash
+cd frontend-vite
+npm install
+npm run dev
+```
+
+## Backend Architecture
+
+### Three-Layer Architecture Design
+
+1. **API Layer**: RESTful endpoints and request handling
+2. **Service Layer**: Business logic and computational processing
+3. **Data Access Layer**: Database operations and data management
+
+### Conda Environment
+
+The backend operates within a specialized Conda environment:
+```bash
+conda create -n orthoviewer python=3.9
+conda activate orthoviewer
+conda install -c conda-forge fastapi uvicorn
+```
+
+### API Documentation
+
+Interactive API documentation available at:
+- Development: `http://localhost:8002/docs`
+- Production: `http://localhost:8080/api/docs`
+
+## Performance Specifications
+
+### Target Metrics
+- Application startup time: < 30 seconds
+- API response time: < 2 seconds for standard queries
+- Frontend load time: < 3 seconds
+- Database query optimization for large datasets
+
+### Scalability Considerations
+- Horizontal scaling through container orchestration
+- Database connection pooling
+- Caching strategies for frequently accessed data
+- Load balancing for high-availability deployments
+
+## Development Guidelines
+
+### Code Quality Standards
+- TypeScript strict mode enforcement
+- Comprehensive test coverage requirements
+- Code review process for all contributions
+- Automated linting and formatting
+
+### Testing Framework
+```bash
+# Backend testing
+pytest tests/
+
+# Frontend testing  
+npm test
+```
+
+## Institutional Compliance
+
+This platform adheres to INRAE (Institut National de Recherche pour l'Agriculture, l'Alimentation et l'Environnement) computational standards and security protocols. All components undergo rigorous validation to ensure compatibility with institutional infrastructure and regulatory requirements.
