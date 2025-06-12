@@ -56,18 +56,19 @@ test_frontend:
   before_script:
     - apt-get update && apt-get install -y python3 make g++
   script:
-    - echo "🔍 Frontend Build Test"
+    - echo "Frontend Build Test"
     - cd frontend-vite
-    - echo "📦 Cleaning and installing dependencies..."
+    - echo "Cleaning and installing dependencies..."
     - "rm -rf node_modules package-lock.json"
     - "npm cache clean --force"
-    - "npm install --legacy-peer-deps --no-optional"
-    - echo "🔨 Building frontend..."
+    - "npm install --legacy-peer-deps"
+    - "npm install @rollup/rollup-linux-x64-gnu --save-dev"
+    - echo "Building frontend..."
     - npm run build
-    - echo "✅ Build verification..."
+    - echo "Build verification..."
     - ls -la dist/
-    - test -f dist/index.html || (echo "❌ Build failed - no index.html" && exit 1)
-    - echo "✅ Frontend build test passed!"
+    - test -f dist/index.html || (echo "Build failed - no index.html" && exit 1)
+    - echo "Frontend build test passed!"
   artifacts:
     paths:
       - frontend-vite/dist/
@@ -102,7 +103,7 @@ test_network:
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "🌐 NETWORK CONNECTIVITY DEBUG"
+    - echo "NETWORK CONNECTIVITY DEBUG"
     - echo "=============================="
     - echo "Runner IP Info:"
     - ip route get 1.1.1.1 | head -1 || echo "Cannot get route info"
@@ -232,13 +233,13 @@ deploy_rocky:
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "🚀 FULLY AUTOMATIC DEPLOYMENT - Trying direct SSH first..."
+    - echo "FULLY AUTOMATIC DEPLOYMENT - Trying direct SSH first..."
     - echo "Triggered by $GITLAB_USER_NAME"
     
     # Test SSH connectivity first
     - |
       if ssh -o ConnectTimeout=30 -o BatchMode=yes $ROCKY_HOST "echo 'SSH connection works'" 2>/dev/null; then
-        echo "✅ SSH CONNECTION SUCCESS - Proceeding with direct deployment"
+        echo "SSH CONNECTION SUCCESS - Proceeding with direct deployment"
         
         echo "Creating isolated backup in orthoviewer directory"
         BACKUP_NAME="orthoviewer_backup_$(date +%Y%m%d_%H%M%S)"
@@ -272,19 +273,19 @@ deploy_rocky:
         sleep 10
         
         echo "Testing deployment health"
-        ssh $ROCKY_HOST "curl -f http://localhost:8080 2>/dev/null && echo '✅ DIRECT DEPLOYMENT SUCCESSFUL' || echo '❌ Deployment failed'"
+        ssh $ROCKY_HOST "curl -f http://localhost:8080 2>/dev/null && echo 'DIRECT DEPLOYMENT SUCCESSFUL' || echo 'Deployment failed'"
         ssh $ROCKY_HOST "cd $PROJECT_DIR && docker compose -f docker-compose.rocky.yml ps"
         
-        echo "🎉 DIRECT DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
+        echo "DIRECT DEPLOYMENT COMPLETE by $GITLAB_USER_NAME"
         
       else
-        echo "❌ SSH CONNECTION FAILED - Triggering AUTOMATIC FALLBACK"
-        echo "🔄 ACTIVATING DOWNSTREAM AUTOMATIC DEPLOYMENT"
+        echo "SSH CONNECTION FAILED - Triggering AUTOMATIC FALLBACK"
+        echo "ACTIVATING DOWNSTREAM AUTOMATIC DEPLOYMENT"
         
         # Create deployment artifact for automatic deployment
         TIMESTAMP=$(date +%Y%m%d_%H%M%S)
         ARTIFACT_NAME="orthoviewer-${CI_COMMIT_SHORT_SHA}-${TIMESTAMP}"
-        echo "📦 Creating artifact for automatic deployment: ${ARTIFACT_NAME}"
+        echo "Creating artifact for automatic deployment: ${ARTIFACT_NAME}"
         
         tar -czf "${ARTIFACT_NAME}.tar.gz" \
           --exclude='.git' \
@@ -292,7 +293,7 @@ deploy_rocky:
           --exclude='__pycache__' \
           .
         
-        echo "✅ Artifact ready for automatic deployment"
+        echo "Artifact ready for automatic deployment"
         echo "DEPLOYMENT_NEEDED=true" > deployment.env
         echo "ARTIFACT_NAME=${ARTIFACT_NAME}.tar.gz" >> deployment.env
       fi
@@ -478,12 +479,12 @@ health_check:
     - echo "  ServerAliveCountMax 3" >> ~/.ssh/config
     - chmod 600 ~/.ssh/config
   script:
-    - echo "🔍 Checking orthoviewer deployment health (isolated check)"
+    - echo "Checking orthoviewer deployment health (isolated check)"
     - echo "Health check triggered by $GITLAB_USER_NAME"
     - echo "Checking containers in orthoviewer directory only"
-    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps" || echo "⚠️ Cannot check containers"
-    - ssh $ROCKY_HOST "curl -f http://localhost:8080" || echo "⚠️ Service not responding"
-    - echo "✅ Orthoviewer health check complete"
+    - ssh $ROCKY_HOST "cd $PROJECT_DIR && docker-compose -f docker-compose.rocky.yml ps" || echo "Cannot check containers"
+    - ssh $ROCKY_HOST "curl -f http://localhost:8080" || echo "Service not responding"
+    - echo "Orthoviewer health check complete"
   only:
     - feat/GNP-6697-rocky-deployment
   when: manual
@@ -502,7 +503,8 @@ build_deployment_artifact:
     - "echo 'Cleaning and installing dependencies...'"
     - "rm -rf node_modules package-lock.json"
     - "npm cache clean --force"
-    - "npm install --legacy-peer-deps --no-optional"
+    - "npm install --legacy-peer-deps"
+    - "npm install @rollup/rollup-linux-x64-gnu --save-dev"
     - "echo 'Building frontend...'"
     - "npm run build"
     - "echo 'Frontend built successfully'"
