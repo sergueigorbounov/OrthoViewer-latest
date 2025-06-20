@@ -1,5 +1,5 @@
 """
-🧬 OrthoViewer2 Main Application - Clean 3-Layer Architecture
+OrthoViewer2 Main Application - Clean 3-Layer Architecture
 ============================================================
 
 Clean architecture with clear separation of concerns:
@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -67,7 +68,7 @@ except ImportError as e:
 
 app = FastAPI(
     title="OrthoViewer2 API",
-    description="🧬 Bioinformatics visualization platform with 3-layer architecture",
+    description="Bioinformatics visualization platform with 3-layer architecture",
     version="2.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc"
@@ -122,9 +123,9 @@ app.include_router(users_router)
 
 @app.get("/")
 async def root():
-    """🏠 Root endpoint - API welcome message"""
+    """Root endpoint - API welcome message"""
     return {
-        "message": "🧬 OrthoViewer2 API - 3-Layer Architecture",
+        "message": "OrthoViewer2 API - 3-Layer Architecture",
         "version": "2.0.0",
         "documentation": "/api/docs",
         "health": "/health",
@@ -142,17 +143,27 @@ async def root():
 
 @app.get("/status")
 async def status():
-    """⚡ System status endpoint"""
+    """System status endpoint"""
     return {"status": "running", "version": "2.0.0", "architecture": "3-layer"}
 
 @app.get("/api/status")
 async def api_status():
-    """⚡ API status endpoint"""
+    """API status endpoint"""
     return {"status": "running", "version": "2.0.0", "architecture": "3-layer"}
+
+@app.get("/api/health")
+async def api_health_direct():
+    """Direct health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "version": "2.0.0",
+        "architecture": "3-layer"
+    }
 
 @app.get("/examples")
 async def examples():
-    """📚 Available example datasets"""
+    """Available example datasets"""
     return {
         "examples": [
             {"id": "arabidopsis", "name": "Arabidopsis thaliana", "type": "model_plant"},
@@ -188,17 +199,17 @@ async def general_exception_handler(request, exc):
 
 @app.on_event("startup")
 async def startup_event():
-    """🚀 Application startup tasks"""
-    logger.info("🧬 OrthoViewer2 API starting up...")
-    logger.info("✅ 3-Layer Architecture initialized")
-    logger.info("📡 API Layer: Routes registered")
-    logger.info("⚙️ Service Layer: Business logic ready")
-    logger.info("💾 Data Access Layer: Repositories available")
+    """Application startup tasks"""
+    logger.info("OrthoViewer2 API starting up...")
+    logger.info("3-Layer Architecture initialized")
+    logger.info("API Layer: Routes registered")
+    logger.info("Service Layer: Business logic ready")
+    logger.info("Data Access Layer: Repositories available")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """🛑 Application shutdown tasks"""
-    logger.info("🧬 OrthoViewer2 API shutting down...")
+    """Application shutdown tasks"""
+    logger.info("OrthoViewer2 API shutting down...")
 
 if __name__ == "__main__":
     import uvicorn

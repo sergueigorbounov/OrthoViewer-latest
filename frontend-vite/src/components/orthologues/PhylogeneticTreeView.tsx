@@ -553,7 +553,7 @@ const D3TreeImplementation: React.FC<{
         
       treeLayout(root);
       
-      // 🔥 EQUAL BRANCH LENGTHS (Not equal leaf radius)
+      // EQUAL BRANCH LENGTHS (Not equal leaf radius)
       const branchLength = 60; // Fixed small branch length
       
       // Set radius based on tree depth, not evolutionary distance
@@ -569,7 +569,7 @@ const D3TreeImplementation: React.FC<{
         (d as any).polar = { angle: d.x || 0, radius: d.y || 0 };
       });
     } else {
-      // 🔥 RECTANGULAR LAYOUT (SAME ALGORITHM AS RADIAL)
+      // RECTANGULAR LAYOUT (SAME ALGORITHM AS RADIAL)
       const treeHeight = Math.max(height * 1.0, leafCount * 18);
       const treeWidth = width * 0.75;
       
@@ -593,16 +593,13 @@ const D3TreeImplementation: React.FC<{
       const usePhylogramLayout = false; // Toggle this to switch between approaches
       
       if (usePhylogramLayout) {
-        // 🧬 PHYLOGRAM APPROACH: Position ALL nodes by evolutionary distance
-        // This creates a more scientifically accurate representation of evolutionary timing
-        // but can be harder to read when branch lengths vary dramatically
+        // PHYLOGRAM APPROACH: Position ALL nodes by evolutionary distance
         root.each(d => {
           const distanceFromRoot = calculateDistanceFromRoot(d);
           d.y = xScale(distanceFromRoot);
         });
       } else {
-        // 📊 DENDROGRAM APPROACH: Align all leaves, position internals by distance
-        // This emphasizes relationships over timing, making comparisons easier
+        // DENDROGRAM APPROACH: Align all leaves, position internals by distance
         root.each(d => {
           const isLeaf = !d.children || d.children.length === 0;
           
@@ -806,7 +803,7 @@ const D3TreeImplementation: React.FC<{
     const links = g.append('g').attr('class', 'links');
       
     if (useRadialLayout) {
-      // 🧬 INVERTED PHYLOGENETIC RADIAL: ARC FIRST, THEN RADIAL
+      // INVERTED PHYLOGENETIC RADIAL: ARC FIRST, THEN RADIAL
       // This creates a "hub and spoke" pattern where ancestral relationships
       // are emphasized through curved connections at inner radii, then each
       // lineage extends cleanly outward to show independent evolution
@@ -826,7 +823,7 @@ const D3TreeImplementation: React.FC<{
           const targetX = targetRadius * Math.sin(targetAngle);
           const targetY = -targetRadius * Math.cos(targetAngle);
           
-          // 🔥 INVERTED PATTERN: ARC FIRST, THEN RADIAL
+          // INVERTED PATTERN: ARC FIRST, THEN RADIAL
           // Step 1: Arc around at source radius (preserving source radius)
           const midX = sourceRadius * Math.sin(targetAngle);
           const midY = -sourceRadius * Math.cos(targetAngle);

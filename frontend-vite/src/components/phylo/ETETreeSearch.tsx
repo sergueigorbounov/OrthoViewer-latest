@@ -23,6 +23,7 @@ import {
   Tooltip,
   IconButton
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 
 interface ETESearchResponse {
   success: boolean;
@@ -180,7 +181,7 @@ const ETETreeSearch: React.FC = () => {
     const startTime = performance.now();
 
     try {
-      console.log('🔍 ETE Search Request for gene:', geneId.trim());
+      console.log('ETE Search Request for gene:', geneId.trim());
       
       const response = await fetch(`${API_BASE_URL}/orthologue/ete-search`, {
         method: 'POST',
@@ -228,7 +229,7 @@ const ETETreeSearch: React.FC = () => {
     const startTime = performance.now();
 
     try {
-      console.log('🔍 Trying a simple species search instead');
+      console.log('Trying a simple species search instead');
 
       const response = await fetch(`${API_BASE_URL}/orthologue/ete-search`, {
         method: 'POST',
@@ -284,7 +285,7 @@ const ETETreeSearch: React.FC = () => {
           
           <Tooltip title="Cache Status">
             <IconButton size="small" onClick={() => setShowCacheDialog(true)}>
-              {cacheStats?.ete_service?.indices_built ? '✅' : '❌'}
+              {cacheStats?.ete_service?.indices_built ? 'OK' : 'ERR'}
             </IconButton>
           </Tooltip>
           
@@ -295,7 +296,7 @@ const ETETreeSearch: React.FC = () => {
               disabled={cacheWarming}
               variant="outlined"
             >
-              {cacheWarming ? 'Warming...' : '🔄 Warm Cache'}
+              {cacheWarming ? 'Warming...' : 'Warm Cache'}
             </Button>
           )}
           
@@ -320,15 +321,15 @@ const ETETreeSearch: React.FC = () => {
               <TableBody>
                 <TableRow>
                   <TableCell>ETE Available</TableCell>
-                  <TableCell>{cacheStats.ete_service?.ete_available ? '✅' : '❌'}</TableCell>
+                  <TableCell>{cacheStats.ete_service?.ete_available ? 'Yes' : 'No'}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Tree Loaded</TableCell>
-                  <TableCell>{cacheStats.ete_service?.tree_loaded ? '✅' : '❌'}</TableCell>
+                  <TableCell>{cacheStats.ete_service?.tree_loaded ? 'Yes' : 'No'}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Indices Built</TableCell>
-                  <TableCell>{cacheStats.ete_service?.indices_built ? '✅' : '❌'}</TableCell>
+                  <TableCell>{cacheStats.ete_service?.indices_built ? 'Yes' : 'No'}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Total Genes</TableCell>
@@ -346,11 +347,11 @@ const ETETreeSearch: React.FC = () => {
               <TableBody>
                 <TableRow>
                   <TableCell>Data Loaded</TableCell>
-                  <TableCell>{cacheStats.orthogroups_repository?.data_loaded ? '✅' : '❌'}</TableCell>
+                  <TableCell>{cacheStats.orthogroups_repository?.data_loaded ? 'Yes' : 'No'}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Indices Built</TableCell>
-                  <TableCell>{cacheStats.orthogroups_repository?.indices_built ? '✅' : '❌'}</TableCell>
+                  <TableCell>{cacheStats.orthogroups_repository?.indices_built ? 'Yes' : 'No'}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Total Genes</TableCell>
@@ -430,7 +431,7 @@ const ETETreeSearch: React.FC = () => {
               size="large"
               onClick={handleSearch}
               disabled={loading || !geneId.trim()}
-              startIcon={loading ? <CircularProgress size={20} /> : '🔍'}
+              startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
               sx={{ minWidth: 140, height: 56 }}
             >
               {loading ? 'Searching...' : 'Search'}
@@ -521,8 +522,8 @@ const ETETreeSearch: React.FC = () => {
                       </Typography>
                     </Box>
                     <Box sx={{ p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-                      <Typography variant="body1" color="success.contrastText">
-                        🧬 Found {results.total_orthologues?.toLocaleString()} orthologous genes across {results.species_with_orthologues} species in orthogroup {results.orthogroup_id}
+                      <Typography variant="body2" sx={{ mt: 1, color: 'success.main' }}>
+                        Found {results.total_orthologues?.toLocaleString()} orthologous genes across {results.species_with_orthologues} species in orthogroup {results.orthogroup_id}
                       </Typography>
                     </Box>
                   </>

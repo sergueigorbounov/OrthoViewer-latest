@@ -13,7 +13,8 @@ import BiotechIcon from '@mui/icons-material/Biotech';
 // Define the navigation links - including the new ETE Tree Search
 const navLinks = [
   { name: 'Explore', path: '/orthologues' },
-  { name: 'Export', path: '/ete-search' },
+  { name: 'Chunked Search', path: '/chunked-search' },
+  { name: 'Server Side Rendering', path: '/ete-search' },
 ];
 
 const Header: React.FC = () => {

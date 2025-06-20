@@ -16,6 +16,9 @@ from .gene_finder import build_gene_to_orthogroup_map, find_gene_orthogroup as f
 from app.data_access.orthogroups_repository import OrthogroupsRepository
 from ..core.monitoring import monitor_performance, track_memory_usage
 from ..core.config import get_settings
+from fastapi.responses import StreamingResponse
+import asyncio
+import time
 
 # ETE3 imports
 try:
@@ -454,13 +457,13 @@ def search_tree_by_clade(clade_query: str, max_results: Optional[int] = None) ->
             if query_lower in clade_string:
                 
                 result = ETESearchResult(
-                    node_name=f"Clade with {len(clade_species)} species",
+                    node_name=node.name or f"Node_{node_count}",
                     node_type="internal",
                     distance_to_root=node.get_distance(tree),
                     support_value=getattr(node, "support", None),
                     species_count=len(clade_species),
                     gene_count=total_genes,
-                    clade_members=clade_species[:10]  # Limit to first 10 for display
+                    clade_members=clade_species  # Show all species, frontend can chunk if needed
                 )
                 results.append(result)
                 
@@ -766,6 +769,67 @@ async def get_orthologue_tree():
             "message": f"Échec du chargement de l'arbre des espèces: {str(e)}"
         }
 
+@router.get("/ete/tree/{orthogroup_id}")
+@monitor_performance(threshold_ms=100.0)
+@track_memory_usage
+async def get_orthogroup_phylogenetic_tree(orthogroup_id: str) -> Dict[str, Any]:
+    """Get the phylogenetic tree for a specific orthogroup"""
+    try:
+        # Get orthogroup genes
+        orthogroup_genes = get_orthogroup_genes(orthogroup_id)
+        if not orthogroup_genes:
+            return {
+                "success": False,
+                "message": f"Orthogroup {orthogroup_id} not found or has no genes"
+            }
+        
+        # Get species tree 
+        species_tree = load_species_tree()
+        if not species_tree:
+            return {
+                "success": False,
+                "message": "Species tree not available"
+            }
+        
+        # Generate tree image if ETE is available
+        tree_image = None
+        analysis = None
+        if ETE_AVAILABLE:
+            try:
+                tree = load_ete_tree()
+                if tree:
+                    # Get species present in this orthogroup
+                    species_in_ortho = list(orthogroup_genes.keys())
+                    
+                    # Generate tree image highlighting orthogroup species
+                    tree_image = generate_tree_image(tree, species_in_ortho)
+                    
+                    # Basic analysis
+                    analysis = {
+                        "species_count": len(species_in_ortho),
+                        "species_list": species_in_ortho,
+                        "gene_count": sum(len(genes) for genes in orthogroup_genes.values()),
+                        "orthogroup_id": orthogroup_id
+                    }
+            except Exception as e:
+                logger.warning(f"ETE tree processing failed: {e}")
+        
+        return {
+            "success": True,
+            "orthogroup_id": orthogroup_id,
+            "newick": species_tree,
+            "genes": orthogroup_genes,
+            "tree_image": tree_image,
+            "analysis": analysis
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting orthogroup tree for {orthogroup_id}: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to get tree for orthogroup {orthogroup_id}: {str(e)}"
+        }
+
 @router.get("/ete-status")
 @monitor_performance(threshold_ms=50.0)
 @track_memory_usage
@@ -962,3 +1026,291 @@ async def search_genes(
     except Exception as e:
         logger.error(f"Error searching genes with query {query}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search/genes/stream")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def search_genes_stream(
+    query: str = Query(..., description="Search query for gene names or IDs"),
+    chunk_size: int = Query(default=50, ge=10, le=200, description="Results per chunk")
+):
+    """Stream ALL gene search results in chunks - unlimited streaming until complete"""
+    try:
+        async def generate_chunks():
+            """Generator function to yield ALL results in chunks"""
+            repo = OrthogroupsRepository()
+            offset = 0
+            total_sent = 0
+            chunk_count = 0
+            
+            # Send initial metadata - no max_total anymore!
+            metadata = {
+                "type": "metadata",
+                "query": query,
+                "chunk_size": chunk_size,
+                "unlimited": True,
+                "timestamp": time.time()
+            }
+            yield f"data: {json.dumps(metadata)}\n\n"
+            
+            # Keep streaming until no more results!
+            while True:
+                # Get next chunk
+                chunk_results = await repo.search_genes(query, chunk_size, offset)
+                
+                if not chunk_results:
+                    # No more results - we're done!
+                    break
+                
+                chunk_count += 1
+                chunk_data = {
+                    "type": "chunk",
+                    "chunk_number": chunk_count,
+                    "results": chunk_results,
+                    "count": len(chunk_results),
+                    "offset": offset,
+                    "total_sent": total_sent + len(chunk_results)
+                }
+                
+                yield f"data: {json.dumps(chunk_data)}\n\n"
+                
+                total_sent += len(chunk_results)
+                offset += chunk_size
+                
+                # Small delay to keep it smooth and entertaining
+                await asyncio.sleep(0.005)  # Even faster delivery!
+                
+                # Stop if chunk is smaller than requested (natural end of data)
+                if len(chunk_results) < chunk_size:
+                    break
+            
+            # Send completion signal with total stats
+            completion = {
+                "type": "complete",
+                "total_sent": total_sent,
+                "chunks_sent": chunk_count,
+                "query": query,
+                "message": f"Streaming complete! {total_sent} genes delivered in {chunk_count} chunks"
+            }
+            yield f"data: {json.dumps(completion)}\n\n"
+        
+        return StreamingResponse(
+            generate_chunks(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable nginx buffering
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in streaming gene search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search/genes/chunked")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def search_genes_chunked(
+    query: str = Query(..., description="Search query for gene names or IDs"),
+    chunk_size: int = Query(default=50, ge=10, le=200, description="Results per chunk"),
+    chunk_number: int = Query(default=1, ge=1, description="Which chunk to retrieve (1-based)"),
+    total_estimate: bool = Query(default=True, description="Include total count estimate")
+):
+    """Get a specific chunk of gene search results with pagination info"""
+    try:
+        repo = OrthogroupsRepository()
+        offset = (chunk_number - 1) * chunk_size
+        
+        # Get the requested chunk
+        chunk_results = await repo.search_genes(query, chunk_size, offset)
+        
+        # Optionally estimate total (expensive operation)
+        total_count = None
+        if total_estimate and chunk_number == 1:
+            # Only estimate on first chunk to avoid repeated expensive operations
+            total_count = await repo.estimate_search_total(query)
+        
+        estimated_chunks = None
+        if total_count:
+            estimated_chunks = (total_count + chunk_size - 1) // chunk_size
+        
+        return {
+            "query": query,
+            "chunk_number": chunk_number,
+            "chunk_size": chunk_size,
+            "results": chunk_results,
+            "count": len(chunk_results),
+            "offset": offset,
+            "has_more": len(chunk_results) == chunk_size,
+            "total_estimate": total_count,
+            "estimated_chunks": estimated_chunks,
+            "next_chunk": chunk_number + 1 if len(chunk_results) == chunk_size else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in chunked gene search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tree/progressive/{orthogroup_id}")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def get_progressive_tree(orthogroup_id: str) -> Dict[str, Any]:
+    """Get instant tree preview + setup progressive loading (< 50ms response)"""
+    try:
+        start_time = time.time()
+        
+        # INSTANT RESPONSE: Get basic info AND simple tree
+        repo = OrthogroupsRepository()
+        basic_info = await repo.get_orthogroup_basic_info(orthogroup_id)
+        
+        if not basic_info:
+            return {
+                "success": False,
+                "message": f"Orthogroup {orthogroup_id} not found"
+            }
+        
+        # Fast preview data with instant tree
+        response_time = (time.time() - start_time) * 1000
+        
+        return {
+            "success": True,
+            "orthogroup_id": orthogroup_id,
+            "preview": {
+                "total_species": basic_info.get("species_count", 0),
+                "total_genes": basic_info.get("gene_count", 0),
+                "estimated_load_time": "instant",
+                "has_tree_data": basic_info.get("has_tree", True)
+            },
+            "instant_tree": {
+                "newick": basic_info.get("simple_newick"),
+                "species_list": basic_info.get("species_list", []),
+                "is_simplified": True
+            },
+            "loading": False,  # Tree available instantly
+            "stream_url": f"/api/orthologue/tree/stream/{orthogroup_id}",
+            "response_time_ms": round(response_time, 2)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting progressive tree preview for {orthogroup_id}: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to get tree preview: {str(e)}"
+        }
+
+@router.get("/tree/stream/{orthogroup_id}")
+@monitor_performance(threshold_ms=50.0)
+@track_memory_usage
+async def stream_tree_data(orthogroup_id: str):
+    """Stream tree data in progressive chunks"""
+    try:
+        async def generate_tree_chunks():
+            """Generate tree data in chunks"""
+            
+            # Initial metadata
+            metadata_msg = {
+                "type": "metadata",
+                "orthogroup_id": orthogroup_id,
+                "timestamp": time.time()
+            }
+            yield f"data: {json.dumps(metadata_msg)}\n\n"
+            
+            try:
+                # Load full tree data (this can take time)
+                tree_data = await get_orthogroup_tree_data(orthogroup_id)
+                
+                if not tree_data or not tree_data.get("success"):
+                    error_msg = {
+                        "type": "error",
+                        "message": "Failed to load tree data"
+                    }
+                    yield f"data: {json.dumps(error_msg)}\n\n"
+                    return
+                
+                # Parse tree and send in chunks of species
+                newick = tree_data.get("newick", "")
+                species_counts = tree_data.get("species_counts", [])
+                
+                # Send species data in chunks of 10
+                chunk_size = 10
+                for i in range(0, len(species_counts), chunk_size):
+                    species_chunk = species_counts[i:i + chunk_size]
+                    
+                    chunk_data = {
+                        "type": "species_chunk",
+                        "chunk_number": (i // chunk_size) + 1,
+                        "species": species_chunk,
+                        "progress": min(100, ((i + chunk_size) / len(species_counts)) * 80)
+                    }
+                    
+                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                    await asyncio.sleep(0.01)  # Small delay
+                
+                # Send complete tree data last
+                complete_data = {
+                    "type": "tree_complete",
+                    "newick": newick,
+                    "total_species": len(species_counts),
+                    "progress": 100
+                }
+                yield f"data: {json.dumps(complete_data)}\n\n"
+                
+            except Exception as e:
+                error_msg = {
+                    "type": "error",
+                    "message": f"Tree loading failed: {str(e)}"
+                }
+                yield f"data: {json.dumps(error_msg)}\n\n"
+        
+        return StreamingResponse(
+            generate_tree_chunks(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error streaming tree data for {orthogroup_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_orthogroup_tree_data(orthogroup_id: str) -> Dict[str, Any]:
+    """Helper function to get complete tree data (can be slow)"""
+    try:
+        # This is the expensive operation that we stream
+        species_mapping = load_species_mapping()
+        genes_by_species = get_orthogroup_genes(orthogroup_id)
+        
+        # Get species tree
+        species_tree = None
+        try:
+            tree = load_ete_tree()
+            if tree and genes_by_species:
+                species_with_gene = list(genes_by_species.keys())
+                species_tree = get_species_tree_newick(species_with_gene, tree, species_mapping)
+        except Exception as e:
+            logger.warning(f"Could not generate species tree: {e}")
+        
+        # Create species counts
+        species_counts = []
+        for species_id, genes in genes_by_species.items():
+            species_name = species_mapping.get(species_id, species_id)
+            species_counts.append({
+                "species_name": species_name,
+                "species_id": species_id,
+                "count": len(genes)
+            })
+        
+        return {
+            "success": True,
+            "newick": species_tree,
+            "species_counts": species_counts,
+            "orthogroup_id": orthogroup_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error loading tree data for {orthogroup_id}: {e}")
+        return {"success": False, "message": str(e)}

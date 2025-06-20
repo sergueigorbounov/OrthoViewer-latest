@@ -32,7 +32,8 @@ import {
   Divider,
   Grid
 } from '@mui/material';
-import { searchOrthologues, type SearchResults } from '../../api/orthologueApi';
+import { searchOrthologues } from '../../api/orthologueApi';
+import type { SearchResults } from '../../api/types';
 import OrthologueResults from './OrthologueResults';
 
 const OrthologueSearch: React.FC = () => {
@@ -175,7 +176,7 @@ const OrthologueSearch: React.FC = () => {
         </Box>
       )}
 
-      {searchResults && (
+      {searchResults && searchResults.success && (
         <OrthologueResults results={searchResults} />
       )}
     </Box>

@@ -1,8 +1,8 @@
-const apiUrl = import.meta.env.VITE_BACKEND_URL || '';
+const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8003/api';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
-  // Ensure endpoint starts with /api if not already present
-  const normalizedEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+  // Ensure endpoint starts with / if not already present
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${apiUrl}${normalizedEndpoint}`;
   
   console.log('🔍 API Request:', options.method || 'GET', url);

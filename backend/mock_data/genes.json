@@ -1,0 +1,214 @@
+{
+  "genes": [
+    {
+      "id": "AT1G01010",
+      "name": "NAC001",
+      "species_id": "arabidopsis",
+      "orthogroup_id": "OG0000001",
+      "description": "NAC domain containing protein 1",
+      "chromosome": "1",
+      "start": 3631,
+      "end": 5899,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0009523",
+          "term": "photosystem II",
+          "category": "Cellular Component"
+        },
+        {
+          "id": "GO:0015979", 
+          "term": "photosynthesis",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "AT1G01020",
+      "name": "ARV1",
+      "species_id": "arabidopsis",
+      "orthogroup_id": "OG0000002",
+      "description": "ARV1 family protein",
+      "chromosome": "1",
+      "start": 6790,
+      "end": 8737,
+      "strand": "-",
+      "go_terms": [
+        {
+          "id": "GO:0015986",
+          "term": "ATP synthesis",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "LOC_Os01g01010",
+      "name": "OsNAC1",
+      "species_id": "rice",
+      "orthogroup_id": "OG0000001",
+      "description": "NAC domain transcription factor",
+      "chromosome": "1",
+      "start": 2983,
+      "end": 10815,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0009523",
+          "term": "photosystem II",
+          "category": "Cellular Component"
+        },
+        {
+          "id": "GO:0003677",
+          "term": "DNA binding",
+          "category": "Molecular Function"
+        }
+      ]
+    },
+    {
+      "id": "LOC_Os01g01020",
+      "name": "OsARV1",
+      "species_id": "rice", 
+      "orthogroup_id": "OG0000002",
+      "description": "ARV1 family protein",
+      "chromosome": "1",
+      "start": 11218,
+      "end": 12435,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0015986",
+          "term": "ATP synthesis",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "Zm00001d027230",
+      "name": "ZmNAC1",
+      "species_id": "maize",
+      "orthogroup_id": "OG0000001",
+      "description": "NAC domain transcription factor",
+      "chromosome": "1",
+      "start": 34617,
+      "end": 37155,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0009523",
+          "term": "photosystem II",
+          "category": "Cellular Component"
+        },
+        {
+          "id": "GO:0006355",
+          "term": "regulation of transcription",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "Zm00001d027240",
+      "name": "ZmARV1",
+      "species_id": "maize",
+      "orthogroup_id": "OG0000002", 
+      "description": "ARV1 family protein",
+      "chromosome": "1",
+      "start": 38000,
+      "end": 40500,
+      "strand": "-",
+      "go_terms": [
+        {
+          "id": "GO:0015986",
+          "term": "ATP synthesis",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "AT1G01030",
+      "name": "RPL1",
+      "species_id": "arabidopsis",
+      "orthogroup_id": "OG0000003",
+      "description": "Ribosomal protein L1",
+      "chromosome": "1",
+      "start": 23146,
+      "end": 31227,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0003735",
+          "term": "structural constituent of ribosome",
+          "category": "Molecular Function"
+        },
+        {
+          "id": "GO:0006412",
+          "term": "translation",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "LOC_Os01g01030",
+      "name": "OsRPL1",
+      "species_id": "rice",
+      "orthogroup_id": "OG0000003",
+      "description": "Ribosomal protein L1",
+      "chromosome": "1",
+      "start": 16399,
+      "end": 20671,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0003735",
+          "term": "structural constituent of ribosome",
+          "category": "Molecular Function"
+        }
+      ]
+    },
+    {
+      "id": "Zm00001d027250",
+      "name": "ZmRPL1",
+      "species_id": "maize",
+      "orthogroup_id": "OG0000003",
+      "description": "Ribosomal protein L1",
+      "chromosome": "1",
+      "start": 45000,
+      "end": 48000,
+      "strand": "+",
+      "go_terms": [
+        {
+          "id": "GO:0003735",
+          "term": "structural constituent of ribosome",
+          "category": "Molecular Function"
+        },
+        {
+          "id": "GO:0006412",
+          "term": "translation",
+          "category": "Biological Process"
+        }
+      ]
+    },
+    {
+      "id": "AT1G01040",
+      "name": "MYB1",
+      "species_id": "arabidopsis",
+      "orthogroup_id": "OG0000004",
+      "description": "MYB domain transcription factor",
+      "chromosome": "1",
+      "start": 31170,
+      "end": 33153,
+      "strand": "-",
+      "go_terms": [
+        {
+          "id": "GO:0003677",
+          "term": "DNA binding",
+          "category": "Molecular Function"
+        },
+        {
+          "id": "GO:0006355",
+          "term": "regulation of transcription",
+          "category": "Biological Process"
+        }
+      ]
+    }
+  ]
+} 

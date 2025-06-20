@@ -1,0 +1,54 @@
+{
+  "orthogroups": [
+    {
+      "id": "OG0000001",
+      "name": "Photosystem II protein family",
+      "description": "Proteins involved in photosystem II light reactions",
+      "gene_count": 12,
+      "species_count": 3,
+      "conservation_score": 0.95,
+      "functional_category": "Photosynthesis",
+      "go_terms": ["GO:0009523", "GO:0015979"]
+    },
+    {
+      "id": "OG0000002", 
+      "name": "ATP synthase subunit family",
+      "description": "ATP synthase complex subunits",
+      "gene_count": 8,
+      "species_count": 3,
+      "conservation_score": 0.98,
+      "functional_category": "Energy metabolism",
+      "go_terms": ["GO:0015986", "GO:0000275"]
+    },
+    {
+      "id": "OG0000003",
+      "name": "Ribosomal protein L family",
+      "description": "Large ribosomal subunit proteins", 
+      "gene_count": 15,
+      "species_count": 3,
+      "conservation_score": 0.92,
+      "functional_category": "Translation",
+      "go_terms": ["GO:0003735", "GO:0006412"]
+    },
+    {
+      "id": "OG0000004",
+      "name": "Transcription factor MYB family",
+      "description": "MYB domain transcription factors",
+      "gene_count": 6,
+      "species_count": 2,
+      "conservation_score": 0.78,
+      "functional_category": "Transcription regulation",
+      "go_terms": ["GO:0003677", "GO:0006355"]
+    },
+    {
+      "id": "OG0000005",
+      "name": "Cellulose synthase family",
+      "description": "Enzymes involved in cellulose biosynthesis",
+      "gene_count": 9,
+      "species_count": 3,
+      "conservation_score": 0.85,
+      "functional_category": "Cell wall biosynthesis",
+      "go_terms": ["GO:0016760", "GO:0009833"]
+    }
+  ]
+} 

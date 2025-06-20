@@ -7,18 +7,19 @@ services:
       dockerfile: Dockerfile
       tags:
         - orthoviewer/backend:latest
-        - orthoviewer/backend:prod
-    image: orthoviewer/backend:prod
-    container_name: orthoviewer-backend
+        - orthoviewer/backend:local
+    image: orthoviewer/backend:local
+    container_name: orthoviewer-backend-local
     volumes:
-      - ./data:/app/data:ro  # Read-only data mount for production
+      - ./data:/app/data
+      - ./backend:/app  # Mount source code for development
     environment:
       - PYTHONPATH=/app
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=
-      - ENV=production
-    expose:
-      - "8002"
+      - ENV=development
+    ports:
+      - "8003:8002"  # Expose backend directly for development
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "conda", "run", "-n", "orthoviewer2", "python", "-c", "import requests; requests.get('http://localhost:8002/api/health/', timeout=5).raise_for_status()"]
@@ -32,17 +33,14 @@ services:
       dockerfile: Dockerfile
       tags:
         - orthoviewer/frontend:latest
-        - orthoviewer/frontend:prod
-    image: orthoviewer/frontend:prod
-    container_name: orthoviewer-frontend
-    expose:
-      - "80"
+        - orthoviewer/frontend:local
+    image: orthoviewer/frontend:local
+    container_name: orthoviewer-frontend-local
+    ports:
+      - "3000:80"  # Expose frontend directly for development
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    depends_on:
+      - backend
 
   nginx:
     build:
@@ -50,11 +48,11 @@ services:
       dockerfile: Dockerfile
       tags:
         - orthoviewer/nginx:latest
-        - orthoviewer/nginx:prod
-    image: orthoviewer/nginx:prod
-    container_name: orthoviewer-nginx
+        - orthoviewer/nginx:local
+    image: orthoviewer/nginx:local
+    container_name: orthoviewer-nginx-local
     ports:
-      - "80:80"
+      - "8080:80"  # Use port 8080 for local testing
     depends_on:
       - backend
       - frontend
@@ -70,4 +68,4 @@ volumes:
 
 networks:
   default:
-    name: orthoviewer-prod 
+    name: orthoviewer-local 

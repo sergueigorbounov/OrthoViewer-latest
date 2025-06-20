@@ -1,5 +1,5 @@
 """
-🏥 Health Check Routes - API Layer
+Health Check Routes - API Layer
 ================================
 
 System health and monitoring endpoints.
@@ -11,13 +11,13 @@ import time
 import psutil
 import logging
 
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(prefix="/api/health", tags=["health"])
 logger = logging.getLogger(__name__)
 
 @router.get("/")
 @router.get("/status")
 async def health_check() -> Dict[str, Any]:
-    """🩺 Basic health check endpoint"""
+    """Basic health check endpoint"""
     return {
         "status": "healthy",
         "timestamp": time.time(),
@@ -27,7 +27,7 @@ async def health_check() -> Dict[str, Any]:
 
 @router.get("/detailed")
 async def detailed_health() -> Dict[str, Any]:
-    """🔍 Detailed system health information"""
+    """Detailed system health information"""
     try:
         memory = psutil.virtual_memory()
         cpu_percent = psutil.cpu_percent(interval=1)
@@ -60,7 +60,7 @@ async def detailed_health() -> Dict[str, Any]:
 
 @router.get("/ready")
 async def readiness_check() -> Dict[str, Any]:
-    """🚀 Kubernetes readiness probe"""
+    """Kubernetes readiness probe"""
     # Add checks for dependencies (database, file system, etc.)
     return {
         "ready": True,
@@ -73,7 +73,7 @@ async def readiness_check() -> Dict[str, Any]:
 
 @router.get("/live")
 async def liveness_check() -> Dict[str, Any]:
-    """💓 Kubernetes liveness probe"""
+    """Kubernetes liveness probe"""
     return {
         "alive": True,
         "timestamp": time.time()

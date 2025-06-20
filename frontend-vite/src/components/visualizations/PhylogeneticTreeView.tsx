@@ -1,9 +1,37 @@
-
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
-import { Box, Typography, CircularProgress, Alert, FormControl, FormControlLabel, Switch, Tabs, Tab } from '@mui/material';
+import { 
+  Box, 
+  Typography, 
+  CircularProgress, 
+  Alert, 
+  AlertTitle,
+  FormControl, 
+  FormControlLabel, 
+  Switch, 
+  Tabs, 
+  Tab, 
+  Paper, 
+  Chip, 
+  Breadcrumbs, 
+  IconButton, 
+  Tooltip, 
+  Grid,
+  Slider,
+  Card,
+  CardContent
+} from '@mui/material';
+import { 
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+  CenterFocusStrong as CenterIcon,
+  Fullscreen as FullscreenIcon,
+  Navigation as NavigationIcon,
+  Home as HomeIcon,
+  Map as MapIcon
+} from '@mui/icons-material';
 import type { SpeciesCountData } from '../../api/orthologueApi';
-// Static import instead of dynamic import
-import * as Phylocanvas from '@phylocanvas/phylocanvas.gl';
+// Phylocanvas import removed to prevent componentName error
 
 interface PhylogeneticTreeViewProps {
   newickData: string;
@@ -11,6 +39,7 @@ interface PhylogeneticTreeViewProps {
   selectedSpecies?: string | null;
   onSpeciesSelected?: (speciesName: string | null) => void;
   onTreeDataLoad?: (loaded: boolean) => void;
+  orthoGroup: string;
 }
 
 interface TreeNode {
@@ -29,33 +58,28 @@ const PhylogeneticTreeView: React.FC<PhylogeneticTreeViewProps> = ({
   speciesCounts,
   selectedSpecies,
   onSpeciesSelected,
-  onTreeDataLoad
+  onTreeDataLoad,
+  orthoGroup
 }) => {
-  const [activeTreeTab, setActiveTreeTab] = useState<number>(0); // 0 = D3, 1 = Phylocanvas
-  const [phylocanvasAvailable, setPhylocanvasAvailable] = useState<boolean>(false);
+  const [phylocanvasAvailable, setPhylocanvasAvailable] = useState<boolean>(false); // Force D3 only
+  const [activeTreeTab, setActiveTreeTab] = useState<number>(0);
   const [useRadialLayout, setUseRadialLayout] = useState<boolean>(() => {
-    const savedLayout = localStorage.getItem('treeViewLayout');
-    return savedLayout === 'radial' || savedLayout === null;
+    return localStorage.getItem('treeViewLayout') === 'radial';
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [treeData, setTreeData] = useState<TreeNode | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [showMiniMap, setShowMiniMap] = useState(false);
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
+  const phylocanvasRef = useRef<any>(null);
 
-  // Check if Phylocanvas is available - now using synchronous check
+  // Temporarily disable Phylocanvas due to compatibility issues
   useEffect(() => {
-    const checkPhylocanvas = () => {
-      try {
-        // Check if Phylocanvas and its createTree function exist
-        if (Phylocanvas && typeof Phylocanvas.createTree === 'function') {
-          setPhylocanvasAvailable(true);
-        } else {
-          throw new Error('Phylocanvas not properly loaded');
-        }
-      } catch (error) {
-        console.log('Phylocanvas not available, using D3 only');
-        setPhylocanvasAvailable(false);
-        setActiveTreeTab(0); // Force to D3 tab
-      }
-    };
-    
-    checkPhylocanvas();
+    // Force D3 only to avoid Phylocanvas componentName error
+    setPhylocanvasAvailable(false);
+    setActiveTreeTab(0);
   }, []);
 
   const handleTreeTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -66,122 +90,37 @@ const PhylogeneticTreeView: React.FC<PhylogeneticTreeViewProps> = ({
     localStorage.setItem('treeViewLayout', useRadialLayout ? 'radial' : 'rectangular');
   }, [useRadialLayout]);
 
-  return (
-    <Box sx={{ height: '100%', width: '100%', position: 'relative' }}>
-      {/* Tree Implementation Tabs - Only show if we have multiple options */}
-      {phylocanvasAvailable && (
-        <Box sx={{ 
-          position: 'absolute', 
-          top: 5, 
-          left: 5, 
-          zIndex: 10,
-          background: 'rgba(255,255,255,0.95)',
-          borderRadius: '6px',
-          border: '1px solid #ddd',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <Tabs 
-            value={activeTreeTab} 
-            onChange={handleTreeTabChange}
-            sx={{ minHeight: '36px' }}
-          >
-            <Tab label="D3 Tree" sx={{ minHeight: '36px', py: 1, fontSize: '0.8rem' }} />
-            <Tab label="Phylocanvas" sx={{ minHeight: '36px', py: 1, fontSize: '0.8rem' }} />
-          </Tabs>
-        </Box>
-      )}
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 25, 300));
+    if (phylocanvasRef.current) {
+      phylocanvasRef.current.zoom(zoomLevel / 100);
+    }
+  };
 
-      {/* Show D3 implementation info if Phylocanvas not available */}
-      {!phylocanvasAvailable && (
-        <Box sx={{ 
-          position: 'absolute', 
-          top: 5, 
-          left: 5, 
-          zIndex: 10,
-          background: 'rgba(255,255,255,0.95)',
-          padding: '8px 12px',
-          borderRadius: '6px',
-          border: '1px solid #ddd',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <Typography variant="caption" sx={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
-            D3 Phylogenetic Tree
-          </Typography>
-        </Box>
-      )}
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 25, 25));
+    if (phylocanvasRef.current) {
+      phylocanvasRef.current.zoom(zoomLevel / 100);
+    }
+  };
 
-      {/* Layout Controls */}
-      <Box sx={{ 
-        position: 'absolute', 
-        top: 5, 
-        right: 5, 
-        zIndex: 10,
-        background: 'rgba(255,255,255,0.95)',
-        padding: '8px 12px',
-        borderRadius: '6px',
-        border: '1px solid #ddd',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}>
-        <Typography variant="caption" display="block" gutterBottom>
-          Layout Options
-        </Typography>
-        <FormControlLabel
-          control={
-            <Switch 
-              size="small"
-              checked={useRadialLayout}
-              onChange={(e) => setUseRadialLayout(e.target.checked)}
-            />
-          }
-          label={
-            <Typography variant="caption">
-              {useRadialLayout ? "Radial" : "Rectangular"}
-            </Typography>
-          }
-        />
-      </Box>
+  const handleCenter = () => {
+    if (phylocanvasRef.current) {
+      phylocanvasRef.current.fitInPanel();
+    }
+    setZoomLevel(100);
+  };
 
-      {/* Tree Content */}
-      <Box sx={{ width: '100%', height: '100%', pt: phylocanvasAvailable ? '50px' : '0px' }}>
-        {(activeTreeTab === 0 || !phylocanvasAvailable) && (
-          <D3TreeImplementation
-            newickData={newickData}
-            speciesCounts={speciesCounts}
-            selectedSpecies={selectedSpecies}
-            onSpeciesSelected={onSpeciesSelected}
-            onTreeDataLoad={onTreeDataLoad}
-            useRadialLayout={useRadialLayout}
-          />
-        )}
-        {phylocanvasAvailable && activeTreeTab === 1 && (
-          <PhylocanvasImplementation
-            newickData={newickData}
-            speciesCounts={speciesCounts}
-            selectedSpecies={selectedSpecies}
-            onSpeciesSelected={onSpeciesSelected}
-            onTreeDataLoad={onTreeDataLoad}
-            useRadialLayout={useRadialLayout}
-          />
-        )}
-      </Box>
-    </Box>
-  );
-};
+  const handleFullscreen = () => {
+    const element = document.getElementById('tree-container');
+    if (element) {
+      element.requestFullscreen?.();
+    }
+  };
 
-// D3 Implementation Component
-const D3TreeImplementation: React.FC<{
-  newickData: string;
-  speciesCounts: SpeciesCountData[];
-  selectedSpecies?: string | null;
-  onSpeciesSelected?: (speciesName: string | null) => void;
-  onTreeDataLoad?: (loaded: boolean) => void;
-  useRadialLayout: boolean;
-}> = ({ newickData, speciesCounts, selectedSpecies, onSpeciesSelected, onTreeDataLoad, useRadialLayout }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [treeData, setTreeData] = useState<TreeNode | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const addToNavigationHistory = (nodeId: string) => {
+    setNavigationHistory(prev => [...prev.slice(-4), nodeId]); // Keep last 5 items
+  };
 
   // Helper function to check if two species names match
   const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
@@ -435,13 +374,13 @@ const D3TreeImplementation: React.FC<{
 
   // Render tree function
   const renderTree = useCallback(() => {
-    if (!svgRef.current || !treeData) return;
+    if (!phylocanvasRef.current || !treeData) return;
 
-    const svg = d3.select(svgRef.current);
+    const svg = d3.select(phylocanvasRef.current);
     svg.selectAll('*').remove();
 
-    const width = svgRef.current.clientWidth || 800;
-    const height = svgRef.current.clientHeight || 600;
+    const width = svg.node()?.clientWidth || 800;
+    const height = svg.node()?.clientHeight || 600;
     
     const container = svg
       .attr('width', width)
@@ -852,7 +791,7 @@ const D3TreeImplementation: React.FC<{
         .attr('fill', '#1976d2')
         .attr('opacity', 0.9);
     }
-  }, [treeData, svgRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch]);
+  }, [treeData, phylocanvasRef, selectedNodeId, useRadialLayout, speciesCounts, getPathToRoot, onSpeciesSelected, onTreeDataLoad, selectedSpecies, doSpeciesNamesMatch]);
 
   useEffect(() => {
     renderTree();
@@ -884,46 +823,204 @@ const D3TreeImplementation: React.FC<{
   }
 
   return (
-    <Box sx={{ 
-      width: '100%', 
-      height: '100%', 
-      overflow: 'auto',
-      '&::-webkit-scrollbar': {
-        width: '8px',
-        height: '8px',
-      },
-      '&::-webkit-scrollbar-thumb': {
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: '4px',
-      }
-    }}>
-      <svg 
-        ref={svgRef} 
-        width="100%" 
-        height={useRadialLayout ? "100%" : "250%"}
-        style={{ cursor: 'grab', minHeight: useRadialLayout ? "500px" : "1500px" }}
-      />
-      
-      <Typography 
-        variant="caption" 
-        component="div"
-        sx={{ 
-          position: 'absolute', 
-          bottom: 8, 
-          left: 8, 
-          background: 'rgba(255,255,255,0.9)',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          fontSize: '0.75rem'
-        }}
-      >
-        <strong>D3 Tree:</strong> Scroll to zoom, drag to pan, click nodes to select
-      </Typography>
+    <Box sx={{ width: '100%', minHeight: '600px' }}>
+      {/* Navigation Controls */}
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Breadcrumbs aria-label="navigation">
+              <Chip
+                icon={<HomeIcon />}
+                label="Tree View"
+                variant="outlined"
+                size="small"
+              />
+              <Chip
+                label={orthoGroup}
+                color="primary"
+                size="small"
+              />
+            </Breadcrumbs>
+            
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Tooltip title="Zoom In">
+                <IconButton onClick={handleZoomIn} disabled={zoomLevel >= 300}>
+                  <ZoomInIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Tooltip title="Zoom Out">
+                <IconButton onClick={handleZoomOut} disabled={zoomLevel <= 25}>
+                  <ZoomOutIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Tooltip title="Center Tree">
+                <IconButton onClick={handleCenter}>
+                  <CenterIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Tooltip title="Fullscreen">
+                <IconButton onClick={handleFullscreen}>
+                  <FullscreenIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showMiniMap}
+                    onChange={(e) => setShowMiniMap(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label="Mini-map"
+                sx={{ ml: 1 }}
+              />
+            </Box>
+          </Box>
+        
+          {/* Zoom Control */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="body2" sx={{ minWidth: '80px' }}>
+              Zoom: {zoomLevel}%
+            </Typography>
+            <Slider
+              value={zoomLevel}
+              onChange={(_, value) => setZoomLevel(value as number)}
+              min={25}
+              max={300}
+              step={25}
+              marks
+              sx={{ flexGrow: 1 }}
+            />
+          </Box>
+        
+          {/* Navigation History */}
+          {navigationHistory.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="textSecondary">
+                Recent Navigation:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                {navigationHistory.map((nodeId, index) => (
+                  <Chip
+                    key={index}
+                    label={nodeId}
+                    size="small"
+                    variant="outlined"
+                    icon={<NavigationIcon />}
+                    onClick={() => {
+                      // Navigate to node functionality
+                      console.log('Navigate to:', nodeId);
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Paper>
+
+      {/* Main Tree View */}
+      <Paper elevation={2} sx={{ position: 'relative' }}>
+        <Tabs value={activeTreeTab} onChange={(e, newValue) => setActiveTreeTab(newValue)}>
+          <Tab label="Radial Layout" />
+          <Tab label="Rectangular Layout" />
+        </Tabs>
+
+        <Box 
+          id="tree-container"
+          sx={{ 
+            position: 'relative',
+            height: '600px',
+            overflow: 'hidden',
+            backgroundColor: '#fafafa'
+          }}
+        >
+          {/* Mini-map overlay */}
+          {showMiniMap && (
+            <Card 
+              sx={{ 
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                width: 200,
+                height: 150,
+                zIndex: 1000,
+                opacity: 0.9
+              }}
+            >
+              <CardContent sx={{ p: 1 }}>
+                <Typography variant="caption">Tree Overview</Typography>
+                <Box sx={{ 
+                  width: '100%', 
+                  height: 100, 
+                  backgroundColor: '#e0e0e0',
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <MapIcon color="disabled" />
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tree content */}
+          <Box
+            sx={{
+              width: '100%',
+              height: '100%',
+              overflow: 'auto',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: '#555',
+              },
+            }}
+          >
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+                <Typography sx={{ ml: 2 }}>Loading phylogenetic tree...</Typography>
+              </Box>
+            ) : error ? (
+              <Alert severity="error" sx={{ m: 2 }}>
+                <AlertTitle>Tree Visualization Error</AlertTitle>
+                {error}
+              </Alert>
+            ) : (
+              <svg
+                ref={phylocanvasRef}
+                width="100%"
+                height="100%"
+                style={{ 
+                  transform: `scale(${zoomLevel / 100})`,
+                  transformOrigin: 'top left',
+                  transition: 'transform 0.3s ease'
+                }}
+              />
+            )}
+          </Box>
+        </Box>
+      </Paper>
     </Box>
   );
 };
 
-// Phylocanvas Implementation Component - Modified to use static import
+// Phylocanvas Implementation Component - Now shows fallback since import is removed
 const PhylocanvasImplementation: React.FC<{
   newickData: string;
   speciesCounts: SpeciesCountData[];
@@ -933,171 +1030,27 @@ const PhylocanvasImplementation: React.FC<{
   useRadialLayout: boolean;
 }> = ({ newickData, speciesCounts, selectedSpecies, onSpeciesSelected, onTreeDataLoad, useRadialLayout }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const treeInstanceRef = useRef<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>('Phylocanvas library removed to prevent compatibility errors');
 
-  const doSpeciesNamesMatch = useCallback((name1: string, name2: string): boolean => {
-    if (!name1 || !name2) return false;
-    
-    const normalized1 = name1.toLowerCase().trim();
-    const normalized2 = name2.toLowerCase().trim();
-    
-    if (normalized1 === normalized2) return true;
-    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
-    
-    const genus1 = normalized1.split(/[\s_]/)[0];
-    const genus2 = normalized2.split(/[\s_]/)[0];
-    
-    if (genus1 === genus2 && genus1.length > 2) {
-      return true;
-    }
-    
-    return false;
-  }, []);
-
-  // Initialize Phylocanvas - Changed to use static import
   useEffect(() => {
-    const initializeTree = () => {
-      if (!containerRef.current || !newickData) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        if (treeInstanceRef.current) {
-          treeInstanceRef.current.destroy();
-          treeInstanceRef.current = null;
-        }
-
-        containerRef.current.innerHTML = '';
-
-        // Use static import of Phylocanvas
-        if (!Phylocanvas || !Phylocanvas.createTree) {
-          throw new Error('Phylocanvas is not available');
-        }
-        
-        const tree = Phylocanvas.createTree(containerRef.current, {
-          type: useRadialLayout ? 'radial' : 'rectangular',
-          source: newickData,
-          alignLabels: true,
-          showLabels: true,
-          showLeafLabels: true,
-          showInternalLabels: false,
-          interactive: true,
-          zoom: true,
-          pan: true,
-          showScale: false,
-          nodeSize: 4,
-          fontSize: 12,
-          fontFamily: 'Arial, sans-serif',
-          strokeWidth: 1,
-          strokeColour: '#ccc',
-          fillColour: '#4caf50',
-          selectedFillColour: '#1976d2',
-          highlightColour: '#42a5f5',
-          padding: 20
-        });
-
-        treeInstanceRef.current = tree;
-
-        tree.on('loaded', () => {
-          const leaves = tree.getLeafNodes();
-          leaves.forEach((node: any) => {
-            const nodeName = node.label || node.id;
-            const matchingSpecies = speciesCounts.find(s => 
-              doSpeciesNamesMatch(s.species_name, nodeName) || 
-              doSpeciesNamesMatch(s.species_id, nodeName)
-            );
-            if (matchingSpecies && matchingSpecies.count > 0) {
-              node.label = `${nodeName} (${matchingSpecies.count})`;
-              node.radius = Math.max(3, Math.min(10, matchingSpecies.count / 10));
-            }
-          });
-          
-          tree.render();
-          
-          if (onTreeDataLoad) {
-            onTreeDataLoad(true);
-          }
-          
-          setLoading(false);
-        });
-
-        tree.on('click', (event: any) => {
-          if (event.node && event.node.isLeaf) {
-            const nodeName = event.node.originalLabel || event.node.label || event.node.id;
-            
-            tree.getLeafNodes().forEach((node: any) => {
-              node.selected = false;
-            });
-            
-            event.node.selected = true;
-            tree.render();
-            
-            if (onSpeciesSelected) {
-              onSpeciesSelected(nodeName);
-            }
-          }
-        });
-
-        tree.on('error', (error: any) => {
-          console.error('Phylocanvas error:', error);
-          setError('Failed to render phylogenetic tree');
-          setLoading(false);
-        });
-
-      } catch (err) {
-        console.error('Error initializing Phylocanvas:', err);
-        setError('Phylocanvas library not available. Please install @phylocanvas/phylocanvas.gl');
-        setLoading(false);
-      }
-    };
-
-    initializeTree();
-
-    return () => {
-      if (treeInstanceRef.current) {
-        treeInstanceRef.current.destroy();
-        treeInstanceRef.current = null;
-      }
-    };
-  }, [newickData, useRadialLayout, speciesCounts, doSpeciesNamesMatch, onSpeciesSelected, onTreeDataLoad]);
-
-  // Handle species selection from parent component
-  useEffect(() => {
-    if (!treeInstanceRef.current || !selectedSpecies) return;
-
-    try {
-      const tree = treeInstanceRef.current;
-      const leaves = tree.getLeafNodes();
-      
-      leaves.forEach((node: any) => {
-        node.selected = false;
-      });
-      
-      const targetNode = leaves.find((node: any) => {
-        const nodeName = node.originalLabel || node.label || node.id;
-        return doSpeciesNamesMatch(nodeName, selectedSpecies);
-      });
-      
-      if (targetNode) {
-        targetNode.selected = true;
-      }
-      
-      tree.render();
-    } catch (error) {
-      console.error('Error selecting species in Phylocanvas:', error);
+    // Phylocanvas has been removed to prevent componentName errors
+    if (onTreeDataLoad) {
+      onTreeDataLoad(false);
     }
-  }, [selectedSpecies, doSpeciesNamesMatch]);
+    setLoading(false);
+  }, [onTreeDataLoad]);
 
   const renderFallbackMessage = () => (
     <Box sx={{ p: 3, textAlign: 'center' }}>
       <Typography variant="h6" gutterBottom>
-        Phylocanvas Not Available
+        Phylocanvas Temporarily Disabled
       </Typography>
       <Typography variant="body2" color="textSecondary" gutterBottom>
-        To use the advanced phylogenetic tree viewer, please install Phylocanvas:
+        Phylocanvas has been temporarily disabled due to compatibility issues.
+      </Typography>
+      <Typography variant="body2" color="textSecondary" gutterBottom>
+        The D3 tree implementation provides excellent phylogenetic tree visualization as an alternative.
       </Typography>
       <Box sx={{ 
         bgcolor: 'grey.100', 
@@ -1107,60 +1060,17 @@ const PhylocanvasImplementation: React.FC<{
         fontSize: '0.9em',
         mt: 2 
       }}>
-        npm install @phylocanvas/phylocanvas.gl
+        Please use the D3 Tree tab for visualization
       </Box>
-      <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-        The D3 tree implementation is available as an alternative.
-      </Typography>
     </Box>
   );
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-        <CircularProgress size={24} />
-        <Typography sx={{ ml: 1, fontSize: '0.9rem' }}>Loading Phylocanvas...</Typography>
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box p={2}>
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-        {error.includes('Phylocanvas library not available') && renderFallbackMessage()}
-      </Box>
-    );
-  }
-
   return (
-    <Box sx={{ height: '100%', width: '100%', position: 'relative' }}>
-      <Box
-        ref={containerRef}
-        sx={{ 
-          width: '100%', 
-          height: '100%',
-          '& canvas': {
-            borderRadius: '4px'
-          }
-        }}
-      />
-      
-      <Typography 
-        variant="caption" 
-        component="div"
-        sx={{ 
-          position: 'absolute', 
-          bottom: 8, 
-          left: 8, 
-          background: 'rgba(255,255,255,0.9)',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          fontSize: '0.75rem'
-        }}
-      >
-        <strong>Phylocanvas:</strong> Click nodes to select, scroll to zoom, drag to pan
-      </Typography>
+    <Box p={2}>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Phylocanvas temporarily disabled to prevent browser console errors
+      </Alert>
+      {renderFallbackMessage()}
     </Box>
   );
 };

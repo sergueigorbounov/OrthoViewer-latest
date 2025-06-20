@@ -1,5 +1,5 @@
 """
-🔧 API Dependencies - Dependency Injection
+API Dependencies - Dependency Injection
 ==========================================
 
 FastAPI dependency injection for service layer.
@@ -42,28 +42,28 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def get_cache_repository() -> CacheRepository:
-    """🗄️ Get cache repository instance"""
+    """Get cache repository instance"""
     if CacheRepository is None:
         logger.warning("CacheRepository not available, using mock")
         return None
     return CacheRepository()
 
 def get_species_repository() -> FileSpeciesRepository:
-    """🌱 Get species repository instance"""
+    """Get species repository instance"""
     if FileSpeciesRepository is None:
         logger.warning("FileSpeciesRepository not available, using mock")
         return None
     return FileSpeciesRepository()
 
 def get_gene_repository() -> FileGeneRepository:
-    """🧬 Get gene repository instance"""
+    """Get gene repository instance"""
     if FileGeneRepository is None:
         logger.warning("FileGeneRepository not available, using mock")
         return None
     return FileGeneRepository()
 
 def get_orthogroup_repository() -> FileOrthogroupRepository:
-    """🌐 Get orthogroup repository instance"""
+    """Get orthogroup repository instance"""
     if FileOrthogroupRepository is None:
         logger.warning("FileOrthogroupRepository not available, using mock")
         return None
@@ -77,7 +77,7 @@ def get_species_service(
     species_repo: FileSpeciesRepository = get_species_repository(),
     cache_repo: CacheRepository = get_cache_repository()
 ) -> SpeciesService:
-    """🌱 Get species service with injected repositories"""
+    """Get species service with injected repositories"""
     if SpeciesService is None:
         logger.warning("SpeciesService not available, using mock")
         return None
@@ -87,7 +87,7 @@ def get_gene_service(
     gene_repo: FileGeneRepository = get_gene_repository(),
     cache_repo: CacheRepository = get_cache_repository()
 ) -> GeneService:
-    """🧬 Get gene service with injected repositories"""
+    """Get gene service with injected repositories"""
     if GeneService is None:
         logger.warning("GeneService not available, using mock")
         return None
@@ -97,7 +97,7 @@ def get_orthogroup_service(
     orthogroup_repo: FileOrthogroupRepository = get_orthogroup_repository(),
     cache_repo: CacheRepository = get_cache_repository()
 ) -> OrthogroupService:
-    """🌐 Get orthogroup service with injected repositories"""
+    """Get orthogroup service with injected repositories"""
     if OrthogroupService is None:
         logger.warning("OrthogroupService not available, using mock")
         return None
@@ -109,7 +109,7 @@ def get_dashboard_service(
     orthogroup_service: OrthogroupService = get_orthogroup_service(),
     cache_repo: CacheRepository = get_cache_repository()
 ) -> DashboardService:
-    """📊 Get dashboard service with injected dependencies"""
+    """Get dashboard service with injected dependencies"""
     if DashboardService is None:
         logger.warning("DashboardService not available, using mock")
         return None
@@ -125,7 +125,7 @@ def get_dashboard_service(
 # ==========================================
 
 def get_database_session() -> Generator:
-    """🗃️ Get database session (for future SQL implementation)"""
+    """Get database session (for future SQL implementation)"""
     # Future implementation for SQL database
     # db = SessionLocal()
     # try:
@@ -139,7 +139,7 @@ def get_database_session() -> Generator:
 # ==========================================
 
 def get_app_settings():
-    """⚙️ Get application settings"""
+    """Get application settings"""
     # Future implementation for configuration management
     return {
         "data_path": "app/data",
@@ -158,7 +158,7 @@ def get_app_settings():
 # ==========================================
 
 def check_service_health() -> dict:
-    """🏥 Check health of all services"""
+    """Check health of all services"""
     health_status = {
         "api_layer": "healthy",
         "service_layer": "healthy",

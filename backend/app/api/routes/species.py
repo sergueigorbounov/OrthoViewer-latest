@@ -99,9 +99,9 @@ async def get_species_by_id(
     service: SpeciesService = Depends(get_species_service)
 ) -> Dict[str, Any]:
     """
-    🔍 Get specific species by ID
+    Get specific species by ID
     
-    Performance target: < 10ms
+    Performance target: < 25ms
     """
     try:
         # Try to load mock data
@@ -143,9 +143,9 @@ async def get_species_statistics(
     service: SpeciesService = Depends(get_species_service)
 ) -> SpeciesStats:
     """
-    📊 Get detailed statistics for a species
+    Get detailed statistics for a species
     
-    Performance target: < 100ms
+    Performance target: < 50ms
     """
     try:
         if service is None:
@@ -180,7 +180,7 @@ async def get_species_genes(
     service: SpeciesService = Depends(get_species_service)
 ) -> List[Dict[str, Any]]:
     """
-    🧬 Get genes for a specific species
+    Get genes for a specific species
     
     Performance target: < 50ms
     """
@@ -212,7 +212,7 @@ async def get_species_orthogroups(
     service: SpeciesService = Depends(get_species_service)
 ) -> Dict[str, Any]:
     """
-    🌐 Get orthogroups for a specific species
+    Get orthogroups for a specific species
     
     Performance target: < 100ms
     """

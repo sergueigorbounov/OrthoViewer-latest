@@ -37,4 +37,14 @@ export const getOrthologueTree = async (): Promise<{ success: boolean; newick: s
   }
 };
 
-export default { searchOrthologues, getOrthologueTree };
+export const getOrthologueTreeByOrthogroup = async (orthogroupId: string): Promise<any> => {
+  try {
+    const response = await apiCall(`/orthologue/ete/tree/${orthogroupId}`);
+    return response;
+  } catch (error) {
+    console.error('Error fetching tree by orthogroup:', error);
+    throw error;
+  }
+};
+
+export default { searchOrthologues, getOrthologueTree, getOrthologueTreeByOrthogroup };

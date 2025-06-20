@@ -9,6 +9,7 @@ import NotFoundPage from './components/pages/NotFoundPage';
 import OrthologuePage from './components/pages/OrthologuePage';
 import OrthologueETEPage from './components/pages/OrthologueETEPage';
 import ETETreeSearch from './components/phylo/ETETreeSearch';
+import ChunkedGeneSearch from './components/search/ChunkedGeneSearch';
 import App from './App';
 
 // Define the application routes
@@ -19,6 +20,7 @@ export const router = createBrowserRouter(
       <Route path="orthologues" element={<OrthologuePage />} />
       <Route path="orthologues-ete" element={<OrthologueETEPage />} />
       <Route path="ete-search" element={<ETETreeSearch />} />
+      <Route path="chunked-search" element={<ChunkedGeneSearch />} />
       <Route path="*" element={<NotFoundPage />} />
     </Route>
   )

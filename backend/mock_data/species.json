@@ -1,0 +1,34 @@
+{
+  "species": [
+    {
+      "id": "arabidopsis",
+      "name": "Arabidopsis thaliana",
+      "common_name": "Mouse-ear cress",
+      "taxonomy_id": 3702,
+      "gene_count": 27416,
+      "orthogroup_count": 16234,
+      "assembly_version": "TAIR10",
+      "last_updated": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "rice",
+      "name": "Oryza sativa",
+      "common_name": "Asian rice",
+      "taxonomy_id": 4530,
+      "gene_count": 35679,
+      "orthogroup_count": 18456,
+      "assembly_version": "IRGSP-1.0",
+      "last_updated": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "maize",
+      "name": "Zea mays",
+      "common_name": "Maize",
+      "taxonomy_id": 4577,
+      "gene_count": 24447,
+      "orthogroup_count": 15670,
+      "assembly_version": "Zm-B73-REFERENCE-NAM-5.0",
+      "last_updated": "2024-01-15T10:30:00Z"
+    }
+  ]
+} 

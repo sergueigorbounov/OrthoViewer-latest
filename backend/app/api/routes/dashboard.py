@@ -1,5 +1,5 @@
 """
-📊 Dashboard Routes - API Layer
+Dashboard Routes - API Layer
 ==============================
 
 HTTP endpoints for dashboard and analytics data.
@@ -9,19 +9,18 @@ Aggregated statistics and visualization data.
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional, Dict, Any
 import logging
+import os
+import json
 
 # Import service layer
 try:
     from app.services.analytics.dashboard_service import DashboardService
     from app.api.dependencies import get_dashboard_service
-    from app.main import load_mock_data
 except ImportError:
     # Temporary fallback for development
     DashboardService = None
     def get_dashboard_service():
         return None
-    def load_mock_data(filename):
-        return {}
 
 # Import models
 try:
@@ -30,6 +29,76 @@ except ImportError:
     # Temporary fallback
     DashboardResponse = Dict[str, Any]
     SystemStats = Dict[str, Any]
+
+# Direct implementation of load_mock_data to avoid import issues
+def load_mock_data(filename: str) -> Dict[str, Any]:
+    """Load mock data with fallback for CI environments"""
+    try:
+        # Try multiple possible locations for mock data
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "..", "mock_data", filename),
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "mock_data", filename),
+            os.path.join("mock_data", filename),
+            filename
+        ]
+        
+        for file_path in possible_paths:
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    return json.load(f)
+        
+        # Fallback: return basic mock data for CI environments
+        if filename == "genes.json":
+            return {
+                "genes": [
+                    {
+                        "id": "gene1",
+                        "name": "Gene 1", 
+                        "species_id": "sp1",
+                        "orthogroup_id": "OG0001",
+                        "go_terms": [
+                            {"id": "GO:0001", "name": "Term 1", "category": "Molecular Function"},
+                            {"id": "GO:0002", "name": "Term 2", "category": "Biological Process"}
+                        ]
+                    },
+                    {
+                        "id": "gene2",
+                        "name": "Gene 2", 
+                        "species_id": "sp1",
+                        "orthogroup_id": "OG0002",
+                        "go_terms": []
+                    },
+                    {
+                        "id": "gene3",
+                        "name": "Gene 3", 
+                        "species_id": "sp2",
+                        "orthogroup_id": "OG0001",
+                        "go_terms": [
+                            {"id": "GO:0003", "name": "Term 3", "category": "Cellular Component"}
+                        ]
+                    }
+                ]
+            }
+        elif filename == "species.json":
+            return {
+                "species": [
+                    {"id": "sp1", "name": "Species 1", "taxonomy": "Kingdom;Phylum;Class;Order;Family;Genus;Species"},
+                    {"id": "sp2", "name": "Species 2", "taxonomy": "Kingdom;Phylum;Class;Order;Family;Genus;Species"}
+                ]
+            }
+        elif filename == "orthogroups.json":
+            return {
+                "orthogroups": [
+                    {"id": "OG0001", "name": "Orthogroup 1", "species": ["sp1", "sp2"]},
+                    {"id": "OG0002", "name": "Orthogroup 2", "species": ["sp1"]}
+                ]
+            }
+        
+        return {}
+        
+    except Exception as e:
+        print(f"Error loading {filename}: {e}")
+        return {}
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 logger = logging.getLogger(__name__)
@@ -40,7 +109,7 @@ async def get_dashboard_overview(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> DashboardResponse:
     """
-    📊 Get comprehensive dashboard overview
+    Get comprehensive dashboard overview
     
     Performance target: < 200ms
     """
@@ -91,7 +160,7 @@ async def get_system_statistics(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> Dict[str, Any]:
     """
-    📈 Get detailed system statistics
+    Get detailed system statistics
     
     Performance target: < 100ms
     """
@@ -171,7 +240,7 @@ async def get_species_comparison(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> Dict[str, Any]:
     """
-    🔄 Get species comparison data
+    Get species comparison data
     
     Performance target: < 150ms
     """
@@ -222,7 +291,7 @@ async def get_top_gene_families(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> List[Dict[str, Any]]:
     """
-    👨‍👩‍👧‍👦 Get top gene families
+    Get top gene families
     
     Performance target: < 100ms
     """
@@ -271,7 +340,7 @@ async def get_search_trends(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> Dict[str, Any]:
     """
-    📈 Get search trends and usage analytics
+    Get search trends and usage analytics
     
     Performance target: < 100ms
     """
@@ -312,7 +381,7 @@ async def get_performance_metrics(
     service: DashboardService = Depends(get_dashboard_service)
 ) -> Dict[str, Any]:
     """
-    ⚡ Get real-time performance metrics
+    Get real-time performance metrics
     
     Performance target: < 50ms
     """

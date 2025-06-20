@@ -1,9 +1,9 @@
 """
-🧬 Gene Routes - API Layer
-==========================
+Gene Routes - API Layer
+======================
 
-HTTP endpoints for gene data management.
-High-performance gene search and retrieval.
+HTTP endpoints for gene-related operations.
+Gene search, retrieval, and metadata operations.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -117,7 +117,7 @@ async def get_all_genes(
     service: GeneService = Depends(get_gene_service)
 ) -> Dict[str, Any]:
     """
-    📋 Get all genes
+    Get all genes
     
     Performance target: < 100ms
     """
@@ -173,7 +173,7 @@ async def search_genes(
     service: GeneService = Depends(get_gene_service)
 ) -> GeneSearchResponse:
     """
-    🔍 High-performance gene search
+    High-performance gene search
     
     Performance target: < 50ms for any search
     """
@@ -238,7 +238,7 @@ async def get_gene_by_id_plural(
     service: GeneService = Depends(get_gene_service)
 ) -> GeneResponse:
     """
-    🔬 Get detailed gene information
+    Get detailed gene information
     
     Performance target: < 25ms
     """
@@ -283,7 +283,7 @@ async def get_gene_by_id_singular(
     service: GeneService = Depends(get_gene_service)
 ) -> Dict[str, Any]:
     """
-    🔬 Get detailed gene information (singular route alias)
+    Get detailed gene information (singular route alias)
     
     Performance target: < 25ms
     """
@@ -326,7 +326,7 @@ async def get_gene_go_terms(
     service: GeneService = Depends(get_gene_service)
 ) -> Dict[str, Any]:
     """
-    🏷️ Get GO terms for a specific gene
+    Get GO terms for a specific gene
     """
     try:
         # Try to load mock data
@@ -381,7 +381,7 @@ async def get_gene_orthologs(
     service: GeneService = Depends(get_gene_service)
 ) -> List[Dict[str, Any]]:
     """
-    🌐 Get orthologs for a specific gene
+    Get orthologs for a specific gene
     
     Performance target: < 100ms
     """
@@ -419,7 +419,7 @@ async def get_gene_sequence(
     service: GeneService = Depends(get_gene_service)
 ) -> Dict[str, Any]:
     """
-    🧬 Get gene sequence data
+    Get gene sequence data
     
     Performance target: < 50ms
     """

@@ -1,9 +1,9 @@
 """
-🌐 Orthogroup Routes - API Layer
-===============================
+Orthogroup Routes - API Layer
+============================
 
-HTTP endpoints for orthogroup data management.
-Efficient retrieval of orthologous gene groups.
+HTTP endpoints for orthogroup-related operations.
+Orthogroup search, retrieval, and analysis operations.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -169,9 +169,9 @@ async def get_orthogroup_by_id(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> OrthogroupResponse:
     """
-    🔍 Get specific orthogroup by ID
+    Get specific orthogroup by ID
     
-    Performance target: < 100ms
+    Performance target: < 25ms
     """
     try:
         if service is None:
@@ -209,7 +209,7 @@ async def get_orthogroup_genes(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> Dict[str, Any]:
     """
-    🧬 Get all genes in a specific orthogroup
+    Get all genes in a specific orthogroup
     
     Performance target: < 100ms
     """
@@ -272,7 +272,7 @@ async def get_orthogroup_by_id_singular(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> Dict[str, Any]:
     """
-    🔍 Get specific orthogroup by ID (singular route alias)
+    Get specific orthogroup by ID (singular route alias)
     
     Performance target: < 100ms
     """
@@ -316,7 +316,7 @@ async def get_orthogroup_genes_singular(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> Dict[str, Any]:
     """
-    🧬 Get genes in specific orthogroup (singular route alias)
+    Get genes in specific orthogroup (singular route alias)
     
     Performance target: < 100ms
     """
@@ -377,7 +377,7 @@ async def get_orthogroup_statistics(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> OrthogroupStats:
     """
-    📊 Get detailed statistics for an orthogroup
+    Get detailed statistics for an orthogroup
     
     Performance target: < 150ms
     """
@@ -417,7 +417,7 @@ async def get_orthogroup_phylogenetic_tree(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> Dict[str, Any]:
     """
-    🌳 Get phylogenetic tree for orthogroup
+    Get phylogenetic tree for orthogroup
     
     Performance target: < 200ms
     """
@@ -471,7 +471,7 @@ async def get_species_orthogroups(
     service: OrthogroupService = Depends(get_orthogroup_service)
 ) -> Dict[str, Any]:
     """
-    🧬 Get orthogroups for a specific species
+    Get orthogroups for a specific species
     
     Performance target: < 100ms
     """
